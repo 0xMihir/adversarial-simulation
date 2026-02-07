@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv add:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:pyclothoids.readthedocs.io)",
+      "Bash(jupyter nbconvert:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

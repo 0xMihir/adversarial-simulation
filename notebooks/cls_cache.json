@@ -1,0 +1,617 @@
+{
+  " Box Truck": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9452199339866638
+  },
+  " Dump Truck 01": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9539857506752014
+  },
+  " Trailer 12ft": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.02484663762152195
+  },
+  "0": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.4272686243057251
+  },
+  "0 Grade": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.5727862119674683
+  },
+  "1 NHTSA North Arrow 7": {
+    "is_vehicle": false,
+    "predicted_class": "direction arrow (north, south, east, west)",
+    "predicted_probability": 0.6988118290901184
+  },
+  "2D BARREL": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.5875532627105713
+  },
+  "30 Speed Limit Sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.5837680697441101
+  },
+  "35 Speed Limit Sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.6074365377426147
+  },
+  "35 mph sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.6717721819877625
+  },
+  "3D POST": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.28292354941368103
+  },
+  "3d Barrel": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.28751340508461
+  },
+  "40 Speed Limit Sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.6171680092811584
+  },
+  "45 Speed Limit Sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.6583347320556641
+  },
+  "Arrow-Scale-Sat": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.21932227909564972
+  },
+  "BARRIER - FRONT": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.6634212732315063
+  },
+  "BIKE": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.010384379886090755
+  },
+  "Bike": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.010384379886090755
+  },
+  "CARGO TRAILER TOP": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.23798635601997375
+  },
+  "CHEVY 1500 EC TOP": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.980823278427124
+  },
+  "DIVIDER TOP": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.755564272403717
+  },
+  "Direction 2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.8416296243667603
+  },
+  "Dog - Top": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.16470828652381897
+  },
+  "FIRE HYDRANT - THREE OUTLETS": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.09501652419567108
+  },
+  "FIRE HYDRANT - TWO OUTLETS": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.07301429659128189
+  },
+  "GMC DELIVERY TRUCK BOT": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9779647588729858
+  },
+  "GMC YUKON DENALI XL T": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9841160178184509
+  },
+  "HWY MARKER WHITE - DOWN": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.9692209362983704
+  },
+  "Human Silhouette - Front": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.5097441673278809
+  },
+  "Hwy Marker White - Down": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.9692209362983704
+  },
+  "Hydrant - Private": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.15927748382091522
+  },
+  "Hydrant Icon - 3 Outlets": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.1584189236164093
+  },
+  "Incline Arrows": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.5234631896018982
+  },
+  "LEFT TURN ONLY": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9559412002563477
+  },
+  "Left Turn 2-Way": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9704775214195251
+  },
+  "Left Turn Only": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9559412002563477
+  },
+  "Left or Straight": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.8619622588157654
+  },
+  "MANHOLE COVER": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.022610269486904144
+  },
+  "NHTSA Caes number": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.5092918276786804
+  },
+  "NHTSA Lane Yield Markers": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.5621647238731384
+  },
+  "NHTSA North Arrow 7": {
+    "is_vehicle": false,
+    "predicted_class": "direction arrow (north, south, east, west)",
+    "predicted_probability": 0.9317120313644409
+  },
+  "NHTSA Protractor": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.02308144047856331
+  },
+  "NHTSA Single Red Traffic Signal": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.9949476718902588
+  },
+  "NHTSA Single Yellow Traffic Signal": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.9971328973770142
+  },
+  "NHTSA Speed Limit Sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.44193121790885925
+  },
+  "NHTSA Speed Limit Sign 45 MPH": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.694288969039917
+  },
+  "NHTSA Speed Limit Sign 55 MPH": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.7293445467948914
+  },
+  "NHTSA Spped Limit Sign": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.5716468691825867
+  },
+  "NHTSA Traffic Light": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.993470311164856
+  },
+  "NHTSA Traffic Light -Colored": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.7945724129676819
+  },
+  "NHTSA Yellow Green Traffic Signal": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.9969612956047058
+  },
+  "NorthArrow 07": {
+    "is_vehicle": false,
+    "predicted_class": "direction arrow (north, south, east, west)",
+    "predicted_probability": 0.9544900059700012
+  },
+  "POLICE TAHOE BOT": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9785270094871521
+  },
+  "PTALSR": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.8382963538169861
+  },
+  "RIGHT OR STRAIGHT": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.8426007628440857
+  },
+  "RP1": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.8854293823242188
+  },
+  "RP2": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.8784258365631104
+  },
+  "Railroad": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.24183408915996552
+  },
+  "Right Turn Only": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9435188174247742
+  },
+  "Right or Straight": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.8426007628440857
+  },
+  "SEMI TRACTOR SINGLE TOP": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.3346991240978241
+  },
+  "SPILLED LIQUID": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.20500977337360382
+  },
+  "STRAIGHT": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.9330383539199829
+  },
+  "SUBARU_LEGACY_TOP": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9227830767631531
+  },
+  "Shrub A - Top": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.7179602980613708
+  },
+  "Speed Limit 50": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.7320493459701538
+  },
+  "Straight": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.9330383539199829
+  },
+  "TOYOTA SCION SIDE": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.96559077501297
+  },
+  "TOYOTA TACOMA CC SIDE": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.978232204914093
+  },
+  "TRACTOR W 53FT TRAILER": {
+    "is_vehicle": false,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.6285966634750366
+  },
+  "TRAFFIC LIGHT": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.9991708397865295
+  },
+  "Traffic Light": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.9991708397865295
+  },
+  "Traffic Light Yellow": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.9841057658195496
+  },
+  "U-HAUL TRAILER - TOP": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.04716046154499054
+  },
+  "Unk Grade": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.8673750162124634
+  },
+  "Yield Mark": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.7039824724197388
+  },
+  "arrow left": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9756994843482971
+  },
+  "arrow right": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9746976494789124
+  },
+  "arrow single": {
+    "is_vehicle": false,
+    "predicted_class": "direction arrow (north, south, east, west)",
+    "predicted_probability": 0.9503023028373718
+  },
+  "double arrow": {
+    "is_vehicle": false,
+    "predicted_class": "road marking / lane line",
+    "predicted_probability": 0.8387460112571716
+  },
+  "double arrow right": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9667317271232605
+  },
+  "minivan dashed V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9619523286819458
+  },
+  "minivan dashed V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9479440450668335
+  },
+  "minivan dashed rollover side": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9509990215301514
+  },
+  "minivan solid V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9237444400787354
+  },
+  "minivan solid V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9081724286079407
+  },
+  "minivan solid rollover side": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.8718953132629395
+  },
+  "nhtsa case box": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.006636304315179586
+  },
+  "p arrow": {
+    "is_vehicle": false,
+    "predicted_class": "direction arrow (north, south, east, west)",
+    "predicted_probability": 0.8510093092918396
+  },
+  "p bike": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.015349066816270351
+  },
+  "p stop": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.890809178352356
+  },
+  "pass car dashed large V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9737377166748047
+  },
+  "pass car dashed large V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9747239947319031
+  },
+  "pass car dashed rollover side": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9734958410263062
+  },
+  "pass car dashed small V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9794117212295532
+  },
+  "pass car dashed small V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9786690473556519
+  },
+  "pass car solid large V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9621458053588867
+  },
+  "pass car solid large V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9649661183357239
+  },
+  "pass car solid rollover side": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9570327401161194
+  },
+  "pass car solid small V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9733479619026184
+  },
+  "pass car solid small V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9741399884223938
+  },
+  "pickup dashed V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9853644371032715
+  },
+  "pickup dashed V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9791576266288757
+  },
+  "pickup dashed rollover side": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9861502051353455
+  },
+  "pickup solid V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9689313769340515
+  },
+  "pickup solid V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9529107809066772
+  },
+  "pickup solid rollover side": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9568806290626526
+  },
+  "rollover dashed undercarriage": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9602579474449158
+  },
+  "rollover solid undercarriage": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.8639615774154663
+  },
+  "suv dashed large V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.983945369720459
+  },
+  "suv dashed large V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.985649049282074
+  },
+  "suv dashed large V3": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9860621094703674
+  },
+  "suv dashed midsize V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9882864356040955
+  },
+  "suv dashed midsize V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9884562492370605
+  },
+  "suv solid large V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9812875390052795
+  },
+  "suv solid large V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9839252829551697
+  },
+  "suv solid large V3": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9835119843482971
+  },
+  "suv solid midsize V1": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9847107529640198
+  },
+  "suv solid midsize V2": {
+    "is_vehicle": true,
+    "predicted_class": "vehicle (car, suv, truck, pickup, bus)",
+    "predicted_probability": 0.9864287376403809
+  },
+  "traffic signal RAG": {
+    "is_vehicle": false,
+    "predicted_class": "traffic light / signal",
+    "predicted_probability": 0.11804352700710297
+  },
+  "tree-1": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.7055522799491882
+  },
+  "tree-2": {
+    "is_vehicle": false,
+    "predicted_class": "background / decoration",
+    "predicted_probability": 0.7078264355659485
+  },
+  "u-turn": {
+    "is_vehicle": false,
+    "predicted_class": "turn direction",
+    "predicted_probability": 0.9926320314407349
+  }
+}

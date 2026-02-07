@@ -1,0 +1,50 @@
+[package]
+name = "preprocessing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# XML parsing
+quick-xml = "0.39.0"
+
+# Error handling
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Serialization (optional, for JSON output)
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+
+# Geometry - Delaunay triangulation
+spade = "2.12"
+
+# Spatial indexing
+rstar = "0.12"
+kiddo = "4.2"
+
+# Parallelism (optional)
+rayon = { version = "1.10", optional = true }
+
+# Memory mapping (optional)
+memmap2 = { version = "0.9", optional = true }
+
+# Classification
+rust-bert = "0.23.0"
+indicatif = "0.18.3"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[features]
+default = ["serde"]
+serde = ["dep:serde", "dep:serde_json"]
+parallel = ["rayon"]
+mmap = ["memmap2"]
+
+# Uncomment when benches/parsing.rs is created
+# [[bench]]
+# name = "parsing"
+# harness = false

@@ -1,0 +1,28 @@
+[project]
+name = "adversarialsimulation"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "accelerate>=1.12.0",
+    "ipykernel>=7.1.0",
+    "ipympl>=0.9.8",
+    "ipywidgets>=8.1.8",
+    "jupyter>=1.1.1",
+    "jupyter-mcp-tools>=0.1.6",
+    "lxml>=6.0.2",
+    "matplotlib>=3.10.7",
+    "mplcursors>=0.7",
+    "numba>=0.63.1",
+    "numpy>=2.3.5",
+    "openai>=2.15.0",
+    "pandas>=2.3.3",
+    "protobuf>=6.33.2",
+    "pyclothoids>=0.2.0",
+    "python-dotenv>=1.2.1",
+    "rtree>=1.4.1",
+    "scipy>=1.16.3",
+    "torch>=2.9.0",
+    "transformers>=4.57.3",
+]

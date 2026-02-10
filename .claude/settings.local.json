@@ -5,7 +5,8 @@
       "Bash(grep:*)",
       "WebFetch(domain:pyclothoids.readthedocs.io)",
       "Bash(jupyter nbconvert:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(.venv/bin/pip list:*)"
     ]
   }
 }

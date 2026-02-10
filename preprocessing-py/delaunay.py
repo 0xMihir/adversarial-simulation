@@ -390,6 +390,35 @@ def check_crossing_optimized(
     return False
 
 
+def smooth_segments(segments, window=3):
+    """
+    Apply moving-average smoothing to each polyline segment.
+
+    Endpoints are preserved so connectivity is maintained.
+    Interior points are replaced by the mean of their window-sized neighbourhood.
+
+    Args:
+        segments: list of polylines (each a list of (x,y) tuples)
+        window: number of neighbours on each side to average (total kernel = 2*window+1)
+    Returns:
+        Smoothed list of polylines.
+    """
+    smoothed = []
+    for seg in segments:
+        pts = np.array(seg)
+        n = len(pts)
+        if n <= 2 * window + 1:
+            smoothed.append(seg)
+            continue
+
+        out = pts.copy()
+        for i in range(window, n - window):
+            out[i] = pts[i - window : i + window + 1].mean(axis=0)
+
+        smoothed.append([tuple(p) for p in out])
+    return smoothed
+
+
 def split_wide_roads(
     centerline_segments,
     midpoint_width_map,
@@ -810,6 +839,87 @@ def bfs_connect_optimized(
 
     return list(segment)
 
+def clean_ends(segments):
+    cleaned = []
+    for seg_idx, segment in enumerate(segments):
+        length = len(segment)
+        if length < 5:
+            cleaned.append(segment)
+            continue
+
+
+        # Compute turning-angle curvature at each interior point
+        coords = np.array([(p[0], p[1]) for p in segment])
+        vectors = np.diff(coords, axis=0)
+        lengths = np.linalg.norm(vectors, axis=1)
+
+        total_len = np.sum(lengths)
+        len_threshold = 0.2 * total_len
+
+        cumulative_len = np.cumsum(lengths)
+        first_index = np.where(cumulative_len > len_threshold)[0][0]
+        last_index = np.where(cumulative_len > (total_len - len_threshold))[0][0]
+
+        angles = np.arctan2(vectors[:, 1], vectors[:, 0])
+        curvatures = np.abs(np.diff(angles))
+        curvatures = np.minimum(curvatures, 2 * np.pi - curvatures)
+        avg_lengths = (lengths[:-1] + lengths[1:]) / 2.0
+        curvatures = np.where(avg_lengths > 0, curvatures / avg_lengths, 0.0)
+
+        # Average curvature of the middle portion (excluding the ends under review)
+        if first_index > last_index:
+            stdev_curvature = np.std(curvatures)
+            average_curvature = np.mean(curvatures)
+        else:
+            stdev_curvature = np.std(curvatures[first_index:last_index])
+            average_curvature = np.mean(curvatures[first_index:last_index])
+
+        threshold = average_curvature
+        
+        print(f"Segment {seg_idx}: threshold = {np.degrees(threshold):.2f}, std = {np.degrees(stdev_curvature):.2f}, total length = {total_len:.2f} ft")
+        print(f"first_index = {first_index}, last_index = {last_index}")
+
+        # Trim consecutive high-curvature points from the start
+        trim_start = 0
+        for i in range(min(first_index, len(curvatures))):
+            if curvatures[i] > threshold:
+                trim_start = i + 1
+            else:
+                break
+
+        # Trim consecutive high-curvature points from the end
+        trim_end = 0
+        for i in range(min(last_index, len(curvatures))):
+            idx = len(curvatures) - 1 - i
+            if curvatures[idx] > threshold:
+                trim_end = i + 1
+            else:
+                break
+
+        end_idx = length - trim_end if trim_end > 0 else length
+        trimmed = list(segment[trim_start:end_idx])
+
+        # Extend start with a straight segment to make up removed length
+        if trim_start > 0 and len(trimmed) >= 2:
+            removed_len = cumulative_len[trim_start - 1]
+            direction = coords[trim_start + 1] - coords[trim_start]
+            norm = np.linalg.norm(direction)
+            if norm > 0:
+                new_start = coords[trim_start] - (direction / norm) * removed_len
+                trimmed.insert(0, (new_start[0], new_start[1]))
+
+        # Extend end with a straight segment to make up removed length
+        if trim_end > 0 and len(trimmed) >= 2:
+            removed_len = total_len - cumulative_len[end_idx - 2]
+            direction = coords[end_idx - 1] - coords[end_idx - 2]
+            norm = np.linalg.norm(direction)
+            if norm > 0:
+                new_end = coords[end_idx - 1] + (direction / norm) * removed_len
+                trimmed.append((new_end[0], new_end[1]))
+
+        cleaned.append(trimmed if len(trimmed) >= 2 else segment)
+
+    return cleaned
 
 def filter_outliers_and_connect_optimized(
     points, distance_threshold=5.0, angle_threshold=30.0, minimum_length=5.0
@@ -1111,6 +1221,8 @@ def get_delaunay_centerlines(
             midpoints, distance_threshold=10, angle_threshold=15
         )
 
+    # Smooth segments before splitting to avoid amplifying noise in offsets
+
     # Split wide roads into offset centerlines
     centerline_segments = split_wide_roads(
         centerline_segments,
@@ -1119,9 +1231,15 @@ def get_delaunay_centerlines(
         triple_split_threshold=32.0,
     )
 
+    centerline_segments = smooth_segments(centerline_segments, window=3)
+    
+    # Clean up ends of segments
+    # centerline_segments = clean_ends(centerline_segments)
+
     # Second pass: reconnect split centerlines at endpoints with clothoid bridges
-    centerline_segments, outlier_info_passB = connect_endpoints_clothoid(
-        centerline_segments, distance_threshold=40, angle_threshold=20    )
+    # centerline_segments, outlier_info_passB = connect_endpoints_clothoid(
+    #     centerline_segments, distance_threshold=50, angle_threshold=5   )
+
     all_centerline_points = [pt for seg in centerline_segments for pt in seg]
 
     # Build width-annotated segments from the (possibly split) centerlines
@@ -1146,6 +1264,6 @@ def get_delaunay_centerlines(
             "oversized_triangles": oversized_triangles,
             "vertex_cluster_info": vertex_cluster_info,
             "all_centerline_points": all_centerline_points,
-            "outlier_info": {"passA": outlier_info_passA, "passB": outlier_info_passB},
+            # "outlier_info": {"passA": outlier_info_passA, "passB": outlier_info_passB},
         },
     }

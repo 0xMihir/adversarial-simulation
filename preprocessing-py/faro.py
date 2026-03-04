@@ -264,7 +264,33 @@ class FaroSceneGraphReader:
                     curve_verts.extend([tuple(pt) for pt in segment_pts])
                 verts = curve_verts
             else:
-                verts = raw_verts
+                # Catmull-Rom spline interpolation through raw vertices
+                if raw_verts and len(raw_verts) >= 2:
+                    curve_verts = []
+                    pts = [np.array(p) for p in raw_verts]
+                    n = len(pts)
+                    # Pad with duplicated endpoints for boundary tangents
+                    padded = [pts[0]] + pts + [pts[-1]]
+                    num_interp = 10  # match Bezier segment density
+                    for i in range(n - 1):
+                        P0, P1 = padded[i], padded[i + 1]
+                        P2, P3 = padded[i + 2], padded[i + 3]
+                        for j in range(num_interp):
+                            if i > 0 and j == 0:
+                                continue  # avoid duplicate join points
+                            t = j / num_interp
+                            t2, t3 = t * t, t * t * t
+                            q = 0.5 * (
+                                2.0 * P1
+                                + (-P0 + P2) * t
+                                + (2.0 * P0 - 5.0 * P1 + 4.0 * P2 - P3) * t2
+                                + (-P0 + 3.0 * P1 - 3.0 * P2 + P3) * t3
+                            )
+                            curve_verts.append(tuple(q))
+                    curve_verts.append(tuple(pts[-1]))
+                    verts = curve_verts
+                else:
+                    verts = [tuple(p) for p in raw_verts] if raw_verts else []
 
             if closed and verts:
                 if verts[0] != verts[-1]:

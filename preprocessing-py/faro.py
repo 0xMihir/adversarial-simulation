@@ -446,10 +446,47 @@ class FaroSceneGraphReader:
         # TODO: rasterize + vlm?
         return False
 
+    def _batch_classify_names(self, names):
+        """
+        Run a single batched MNLI call for all unique uncached names and populate cls_cache.
+        """
+        uncached = [n for n in names if n not in self.cls_cache]
+        if not uncached:
+            return
+
+        texts = [n.lower().replace("_", " ") for n in uncached]
+        results = self.clf(
+            texts,
+            candidate_labels=self.CLASSIFICATION_LABELS,
+            multi_label=True,
+            hypothesis_template="This item is a {}.",
+        )
+
+        # Pipeline returns a list when given a list
+        for name, out in zip(uncached, results):
+            scores = out["scores"]
+            max_idx = int(np.argmax(scores))
+            predicted_class = out["labels"][max_idx]
+            predicted_prob = scores[max_idx]
+            is_vehicle = predicted_class == self.LABEL_VEHICLE and predicted_prob > 0.7
+            self.cls_cache[name] = {
+                "is_vehicle": is_vehicle,
+                "predicted_class": predicted_class,
+                "predicted_probability": predicted_prob,
+            }
+
     def _cluster_and_classify(self):
         """
         Phase 2: Reconstruct objects based on attributes and SPATIAL PROXIMITY.
         """
+        # Pre-classify all unique symbol names in one batched request
+        names_to_classify = [
+            s["name"]
+            for s in self.symbols
+            if s["name"] and not s["vehicle2d"]
+        ]
+        self._batch_classify_names(names_to_classify)
+
         # 1. Identify Vehicle Candidates
         # Heuristics: Explicit attribute OR Name match OR Aspect Ratio check
         vehicle_candidates = []

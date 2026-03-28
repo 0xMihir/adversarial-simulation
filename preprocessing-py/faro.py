@@ -8,6 +8,22 @@ handler = logging.StreamHandler(stream=sys.stdout)
 handler.setLevel(logging.INFO)
 logger.addHandler(handler)
 
+MAX_ROADWAY_CURVATURE_DEG = 100.0  # deg per ft
+
+
+def _avg_curvature_deg(verts: np.ndarray) -> float:
+    """Average curvature in degrees per unit length."""
+    if len(verts) < 3:
+        return 0.0
+    diffs = np.diff(verts, axis=0)
+    seg_lens = np.linalg.norm(diffs, axis=1)
+    headings = np.arctan2(diffs[:, 1], diffs[:, 0])
+    dtheta = np.abs(np.diff(headings))
+    dtheta = np.minimum(dtheta, 2 * np.pi - dtheta)
+    avg_lens = (seg_lens[:-1] + seg_lens[1:]) / 2.0
+    curv = np.where(avg_lens > 0, dtheta / avg_lens, 0.0)
+    return float(np.degrees(np.mean(curv)))
+
 
 class FaroSceneGraphReader:
     # MNLI Classification Labels
@@ -73,22 +89,19 @@ class FaroSceneGraphReader:
 
     def _apply_transform(self, points, matrix):
         """
-        Applies a 3x3 matrix to a list of 2D points [(x,y), ...].
+        Applies a 3x3 matrix to an (N,2) array (or list) of 2D points.
+        Returns an (N,2) numpy array.
         """
-        if not points:
-            return []
+        pts = np.asarray(points, dtype=float)
+        if pts.ndim == 1:
+            pts = pts.reshape(1, -1)
+        if len(pts) == 0:
+            return np.empty((0, 2))
 
-        # Convert to homogeneous coordinates (x, y, 1)
-        pts = np.array(points)
         ones = np.ones((pts.shape[0], 1))
         pts_homo = np.hstack([pts, ones])
-
-        # Apply matrix (Transposed because points are rows)
-        # Result = (M @ P.T).T
         transformed = (matrix @ pts_homo.T).T
-
-        # Return as list of (x, y) tuples
-        return [tuple(row[:2]) for row in transformed]
+        return transformed[:, :2]
 
     def parse(self):
         """
@@ -215,12 +228,13 @@ class FaroSceneGraphReader:
         def parse_verts(attr):
             raw = element.get(attr)
             if not raw:
-                return []
-            return [tuple(map(float, v.split(",")))[:2] for v in raw.split(";") if v]
+                return np.empty((0, 2))
+            pts = [tuple(map(float, v.split(",")))[:2] for v in raw.split(";") if v]
+            return np.array(pts) if pts else np.empty((0, 2))
 
         # Cubic Bezier evaluation
         def bezier_cubic(P0, C1, C2, P1, t):
-            # t is (m,) -> returns (m,3)
+            # t is (m,) -> returns (m,2)
             t = t[:, None]
             return (
                 ((1 - t) ** 3) * P0
@@ -229,7 +243,17 @@ class FaroSceneGraphReader:
                 + (t**3) * P1
             )
 
-        verts = []
+        # Quadratic Bezier evaluation
+        def bezier_quadratic(P0, C, P1, t):
+            # t is (m,) -> returns (m,2)
+            t = t[:, None]
+            return (
+                ((1 - t) ** 2) * P0
+                + 2 * (1 - t) * t * C
+                + (t**2) * P1
+            )
+
+        verts = None
         text_content = None
         dashed = False
         thick = False
@@ -240,61 +264,51 @@ class FaroSceneGraphReader:
         elif el_type == "polycurve":
             raw_verts = parse_verts("pnts")
             ctrl_pts = parse_verts("ctrl")
-            if raw_verts and not closed:
+            if len(raw_verts) > 0 and not closed:
                 first_pt = raw_verts[0]
                 last_pt = raw_verts[-1]
-                bbox = (min(x for x, y in raw_verts), min(y for x, y in raw_verts),
-                        max(x for x, y in raw_verts), max(y for x, y in raw_verts))
+                bbox = (raw_verts[:, 0].min(), raw_verts[:, 1].min(),
+                        raw_verts[:, 0].max(), raw_verts[:, 1].max())
                 if np.hypot(first_pt[0]-last_pt[0], first_pt[1]-last_pt[1]) < 0.25 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]):
                     closed = True
                     
-            if raw_verts and ctrl_pts and 2 * len(raw_verts) - 2 == len(ctrl_pts):
-                # Build cubic Bezier segments
-                curve_verts = []
+            if len(raw_verts) > 0 and len(ctrl_pts) > 0:
                 num_segments = len(raw_verts) - 1
-                for i in range(num_segments):
-                    P0 = np.array(raw_verts[i])
-                    P1 = np.array(raw_verts[i + 1])
-                    C1 = np.array(ctrl_pts[2 * i])
-                    C2 = np.array(ctrl_pts[2 * i + 1])
-                    t_vals = np.linspace(0, 1, num=10)  # 10 points per segment
-                    segment_pts = bezier_cubic(P0, C1, C2, P1, t_vals)
-                    if i > 0:
-                        segment_pts = segment_pts[1:]  # Avoid duplicating points
-                    curve_verts.extend([tuple(pt) for pt in segment_pts])
-                verts = curve_verts
-            else:
-                # Catmull-Rom spline interpolation through raw vertices
-                if raw_verts and len(raw_verts) >= 2:
-                    curve_verts = []
-                    pts = [np.array(p) for p in raw_verts]
-                    n = len(pts)
-                    # Pad with duplicated endpoints for boundary tangents
-                    padded = [pts[0]] + pts + [pts[-1]]
-                    num_interp = 10  # match Bezier segment density
-                    for i in range(n - 1):
-                        P0, P1 = padded[i], padded[i + 1]
-                        P2, P3 = padded[i + 2], padded[i + 3]
-                        for j in range(num_interp):
-                            if i > 0 and j == 0:
-                                continue  # avoid duplicate join points
-                            t = j / num_interp
-                            t2, t3 = t * t, t * t * t
-                            q = 0.5 * (
-                                2.0 * P1
-                                + (-P0 + P2) * t
-                                + (2.0 * P0 - 5.0 * P1 + 4.0 * P2 - P3) * t2
-                                + (-P0 + 3.0 * P1 - 3.0 * P2 + P3) * t3
-                            )
-                            curve_verts.append(tuple(q))
-                    curve_verts.append(tuple(pts[-1]))
-                    verts = curve_verts
-                else:
-                    verts = [tuple(p) for p in raw_verts] if raw_verts else []
+                if 2 * num_segments == len(ctrl_pts):
+                    # Build cubic Bezier segments (2 control points per segment)
+                    curve_segments = []
+                    for i in range(num_segments):
+                        P0 = raw_verts[i]
+                        P1 = raw_verts[i + 1]
+                        C1 = ctrl_pts[2 * i]
+                        C2 = ctrl_pts[2 * i + 1]
+                        t_vals = np.linspace(0, 1, num=10)
+                        segment_pts = bezier_cubic(P0, C1, C2, P1, t_vals)
+                        if i > 0:
+                            segment_pts = segment_pts[1:]
+                        curve_segments.append(segment_pts)
+                    verts = np.vstack(curve_segments)
+                elif num_segments == len(ctrl_pts):
+                    # Build quadratic Bezier segments (1 control point per segment)
+                    curve_segments = []
+                    for i in range(num_segments):
+                        P0 = raw_verts[i]
+                        P1 = raw_verts[i + 1]
+                        C = ctrl_pts[i]
+                        t_vals = np.linspace(0, 1, num=10)
+                        segment_pts = bezier_quadratic(P0, C, P1, t_vals)
+                        if i > 0:
+                            segment_pts = segment_pts[1:]
+                        curve_segments.append(segment_pts)
+                    verts = np.vstack(curve_segments)
 
-            if closed and verts:
-                if verts[0] != verts[-1]:
-                    verts.append(verts[0])
+            else:
+                # verts = self._interp_catmull_rom(raw_verts)
+                verts = self._interp_bezier_composite(raw_verts, tension=0.33)
+
+            if closed and len(verts) > 0:
+                if not np.array_equal(verts[0], verts[-1]):
+                    verts = np.vstack([verts, verts[0:1]])
 
         elif el_type == "line":
             line_data = element.find("lndata")
@@ -308,16 +322,14 @@ class FaroSceneGraphReader:
             startY = float(element.get("pntSy", "0"))
             endX = float(element.get("pntEx", "0"))
             endY = float(element.get("pntEy", "0"))
-            verts = [(startX, startY), (endX, endY)]
+            verts = np.array([[startX, startY], [endX, endY]])
         elif el_type == "label":
             # For text, we might care about the insertion point
             sizeX = float(element.get("sizex", "0"))
             sizeY = float(element.get("sizey", "0"))
             offPosx = sizeX / 2.0
             offPosy = sizeY / 2.0
-            text_point = (offPosx, offPosy)  # Text anchor point
-            verts = [text_point]
-            # verts = [(0, 0)]
+            verts = np.array([[offPosx, offPosy]])
             text_content = element.get("text", "")
             if not text_content:
                 print("Warning: Label element without text content.")
@@ -338,17 +350,25 @@ class FaroSceneGraphReader:
             print("Flex concrete barrier encountered; skipping for now.")
             pass
 
-        lndata = element.find("lndata")  # could check for arrows here
+        lndata_dict = {}
+        lndata = element.find("lndata")
         if lndata is not None:
-            if lndata.get("lt") == "1":
-                dashed = True
-            if lndata.get("thickness") > "0":
-                thick = True
+            for key in ['lt', 'thickness', 'dshlen', 'dshspc', 'lnspc', 'extrude',
+                        'dotradius', 'dotspacing', 'arrowsize']:
+                val = lndata.get(key)
+                if val is not None:
+                    lndata_dict[key] = float(val)
+            for key in ['dotfilled', 'arrowshows', 'arrowshowe']:
+                lndata_dict[key] = lndata.get(key, 'F') == 'T'
 
-        if verts:
-            xs, ys = zip(*verts)
-            center = (np.mean(xs), np.mean(ys))
-            bbox = (min(xs), min(ys), max(xs), max(ys))  # (xmin, ymin, xmax, ymax)
+            # Derive legacy flags for backwards compat
+            dashed = lndata_dict.get('lt', 0) == 1
+            thick = lndata_dict.get('thickness', 0) > 0
+
+        if verts is not None and len(verts) > 0:
+            center = verts.mean(axis=0)
+            bbox = (verts[:, 0].min(), verts[:, 1].min(),
+                    verts[:, 0].max(), verts[:, 1].max())
 
             for prop in reversed(current_props):
                 if "nam" in prop and prop["nam"]:
@@ -363,7 +383,7 @@ class FaroSceneGraphReader:
                 "verts": verts,
                 "transformed_verts": self._apply_transform(verts, global_matrix),
                 "center": center,
-                "transformed_center": self._apply_transform([center], global_matrix)[0],
+                "transformed_center": self._apply_transform(center[np.newaxis], global_matrix)[0],
                 "bbox": bbox,
                 "vehicle2d": element.get("vehicle2d", "F") == "T",
                 "transform": global_matrix,
@@ -371,11 +391,98 @@ class FaroSceneGraphReader:
                 "dashed": dashed,
                 "thick": thick,
                 "closed": closed,
-                "layer": layer
+                "layer": layer,
+                "lndata": lndata_dict,
             }
         else:
             pass
             # logger.warning(f"Warning: No verts found for element of type {el_type}")
+
+    def _interp_bezier_composite(self, pts_2d, tension):
+        """Composite cubic Bézier with Hobby-like tangent estimation."""
+        N_SAMPLES = 10
+        n = len(pts_2d)
+
+        # Estimate tangents at each point
+        tangents = np.zeros_like(pts_2d)
+        for i in range(n):
+            if i == 0:
+                tangents[i] = pts_2d[1] - pts_2d[0]
+            elif i == n - 1:
+                tangents[i] = pts_2d[-1] - pts_2d[-2]
+            else:
+                tangents[i] = pts_2d[i+1] - pts_2d[i-1]
+
+        all_pts = []
+        for i in range(n - 1):
+            p0 = pts_2d[i]
+            p3 = pts_2d[i + 1]
+            seg_len = np.linalg.norm(p3 - p0)
+            p1 = p0 + tension * tangents[i] * seg_len / np.linalg.norm(tangents[i] + 1e-12)
+            p2 = p3 - tension * tangents[i+1] * seg_len / np.linalg.norm(tangents[i+1] + 1e-12)
+
+            t_seg = np.linspace(0, 1, max(N_SAMPLES // (n-1), 20))
+            curve = (
+                np.outer((1-t_seg)**3, p0) +
+                np.outer(3*(1-t_seg)**2*t_seg, p1) +
+                np.outer(3*(1-t_seg)*t_seg**2, p2) +
+                np.outer(t_seg**3, p3)
+            )
+            all_pts.append(curve if i == 0 else curve[1:])  # avoid duplicating junction points
+
+        return np.vstack(all_pts)
+        
+
+    def _interp_catmull_rom(self, pts_2d):
+        N_SAMPLES = 10
+        alpha = 0.5
+
+        # Extend endpoints
+        p_start = 2 * pts_2d[0] - pts_2d[1]
+        p_end = 2 * pts_2d[-1] - pts_2d[-2]
+
+        pts_ext = np.vstack([p_start, pts_2d, p_end])
+
+        def tj(ti, pi, pj):
+            return ti + np.sqrt((pj[0]-pi[0])**2 + (pj[1]-pi[1])**2)**alpha
+
+        segments = []
+        seg_lengths = []
+        for i in range(len(pts_ext) - 3):
+            p0, p1, p2, p3 = pts_ext[i], pts_ext[i+1], pts_ext[i+2], pts_ext[i+3]
+            t0 = 0
+            t1 = tj(t0, p0, p1)
+            t2 = tj(t1, p1, p2)
+            t3 = tj(t2, p2, p3)
+            seg_lengths.append(t2 - t1)
+            segments.append((p0, p1, p2, p3, t0, t1, t2, t3))
+
+        # Distribute t_fine samples proportional to segment parameter length
+        total_len = sum(seg_lengths)
+        all_pts = []
+        for seg_idx, (p0, p1, p2, p3, t0, t1, t2, t3) in enumerate(segments):
+            n_seg = max(int(N_SAMPLES * seg_lengths[seg_idx] / total_len), 10)
+            t_local = np.linspace(t1, t2, n_seg, endpoint=(seg_idx == len(segments)-1))
+
+            A1 = np.outer((t1-t_local)/(t1-t0), p0) + np.outer((t_local-t0)/(t1-t0), p1)
+            A2 = np.outer((t2-t_local)/(t2-t1), p1) + np.outer((t_local-t1)/(t2-t1), p2)
+            A3 = np.outer((t3-t_local)/(t3-t2), p2) + np.outer((t_local-t2)/(t3-t2), p3)
+            B1 = np.outer((t2-t_local)/(t2-t0), A1[:, 0]) + np.outer((t_local-t0)/(t2-t0), A2[:, 0])
+            B1 = np.column_stack([
+                (t2-t_local)/(t2-t0) * A1[:, 0] + (t_local-t0)/(t2-t0) * A2[:, 0],
+                (t2-t_local)/(t2-t0) * A1[:, 1] + (t_local-t0)/(t2-t0) * A2[:, 1],
+            ])
+            B2 = np.column_stack([
+                (t3-t_local)/(t3-t1) * A2[:, 0] + (t_local-t1)/(t3-t1) * A3[:, 0],
+                (t3-t_local)/(t3-t1) * A2[:, 1] + (t_local-t1)/(t3-t1) * A3[:, 1],
+            ])
+            C = np.column_stack([
+                (t2-t_local)/(t2-t1) * B1[:, 0] + (t_local-t1)/(t2-t1) * B2[:, 0],
+                (t2-t_local)/(t2-t1) * B1[:, 1] + (t_local-t1)/(t2-t1) * B2[:, 1],
+            ])
+            all_pts.append(C)
+
+        return np.vstack(all_pts)
 
     def _check_name_vehicle(self, name):
         """
@@ -518,8 +625,11 @@ class FaroSceneGraphReader:
         for p in self.primitives:
             if p["type"] == "label":
                 texts.append(p)
-            elif p["type"] in ["polycurve", "polyline", "line", "flexconcretebarrier"]: #and p["layer"] == "Line Work":
-                roadway.append(p)
+            elif p["type"] in ["polycurve", "polyline", "line", "flexconcretebarrier"]:
+                # if _avg_curvature_deg(p["verts"]) <= MAX_ROADWAY_CURVATURE_DEG:
+                    roadway.append(p)
+                # else:
+                    # others.append(p)
             else:
                 others.append(p)
 

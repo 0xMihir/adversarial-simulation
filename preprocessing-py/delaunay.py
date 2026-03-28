@@ -998,6 +998,7 @@ def get_delaunay_centerlines(
     road_threshold=(5, 15.0),
     vertex_cluster_threshold=10,
     parallel_angle_epsilon=15.0,
+    split_threshold=(22,32)
 ):
     """
     Optimized Delaunay centerline extraction with:
@@ -1016,14 +1017,12 @@ def get_delaunay_centerlines(
 
     for roadway_idx, item in enumerate(roadway_items):
         verts = item["verts"]
-        if not verts or len(verts) < 2:
+        if verts is None or len(verts) < 2:
             continue
 
-        roadway_edges[roadway_idx] = []
-        for i in range(len(verts) - 1):
-            roadway_edges[roadway_idx].append(
-                (np.array(verts[i]), np.array(verts[i + 1]))
-            )
+        roadway_edges[roadway_idx] = [
+            (verts[i], verts[i + 1]) for i in range(len(verts) - 1)
+        ]
 
         resampled = resample_polyline(verts, step_distance=1.0)
         for pt in resampled:
@@ -1227,8 +1226,8 @@ def get_delaunay_centerlines(
     centerline_segments = split_wide_roads(
         centerline_segments,
         midpoint_width_map,
-        split_threshold=22,
-        triple_split_threshold=32.0,
+        split_threshold=split_threshold[0],
+        triple_split_threshold=split_threshold[1],
     )
 
     centerline_segments = smooth_segments(centerline_segments, window=3)
@@ -1236,9 +1235,9 @@ def get_delaunay_centerlines(
     # Clean up ends of segments
     # centerline_segments = clean_ends(centerline_segments)
 
-    # Second pass: reconnect split centerlines at endpoints with clothoid bridges
+    # # Second pass: reconnect split centerlines at endpoints with clothoid bridges
     # centerline_segments, outlier_info_passB = connect_endpoints_clothoid(
-    #     centerline_segments, distance_threshold=50, angle_threshold=5   )
+    #     centerline_segments, distance_threshold=50, angle_threshold=15   )
 
     all_centerline_points = [pt for seg in centerline_segments for pt in seg]
 

@@ -1016,7 +1016,7 @@ def get_delaunay_centerlines(
     max_road_width = road_threshold[1]
 
     for roadway_idx, item in enumerate(roadway_items):
-        verts = item["verts"]
+        verts = item["transformed_verts"]
         if verts is None or len(verts) < 2:
             continue
 

@@ -1,0 +1,22 @@
+[project]
+name = "faro"
+version = "0.1.0"
+description = "FARO scene parsing, Delaunay centerline extraction, and trajectory fitting for NHTSA CISS data"
+requires-python = ">=3.12"
+dependencies = [
+    "lxml>=6.0.0",
+    "numpy>=2.0.0",
+    "scipy>=1.16.0",
+    "pyclothoids>=0.2.0",
+    "numba>=0.63.0",
+]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["faro"]
+
+[tool.setuptools.package-dir]
+"faro" = "."

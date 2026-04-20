@@ -45,7 +45,8 @@ class FaroSceneGraphReader:
         LABEL_BACKGROUND,
     ]
 
-    def __init__(self, file_path, clf_pipeline, cls_cache=None):
+    def __init__(self, file_path, clf_pipeline, cls_cache=None, texture_cache=None):
+        self.file_path = file_path
         self.tree = etree.parse(file_path, etree.XMLParser(huge_tree=True))
         self.root = self.tree.getroot()
         self.clf = clf_pipeline
@@ -59,9 +60,12 @@ class FaroSceneGraphReader:
             "road_markings": [],
             "misc": [],
             "texts": [],
+            "images": [],
             "scalebar": None,
         }
         self.cls_cache = cls_cache if cls_cache is not None else {}
+        self.texture_cache = texture_cache  # flat {normalized_key: base64_data} from corpus
+        self.textures = {}
 
     def _get_transform_matrix(self, item):
         """
@@ -103,12 +107,44 @@ class FaroSceneGraphReader:
         transformed = (matrix @ pts_homo.T).T
         return transformed[:, :2]
 
+    def _extract_textures(self, scene_element):
+        """Build {normalized_key: base64_data} from <textures> block."""
+        textures = {}
+        tex_block = scene_element.find("textures")
+        if tex_block is None:
+            return textures
+        for tex in tex_block.findall("tex"):
+            key = tex.get("key", "").lower().replace("\\", "/")
+            file_elem = tex.find("file")
+            if file_elem is not None and file_elem.get("data"):
+                textures[key] = file_elem.get("data")
+        return textures
+
+    def _lookup_sign_texture(self, fname):
+        if not fname:
+            return None
+        norm = fname.lower().replace("\\", "/")
+        # Absolute Windows path — direct key lookup
+        if norm.startswith("c:/"):
+            return self.textures.get(norm)
+        # [Signs] relative prefix — match against key suffix
+        if norm.startswith("[signs]"):
+            suffix = norm[len("[signs]"):]  # e.g. "preset/us/.../stop.png"
+            for key, data in self.textures.items():
+                if key.endswith("signs/" + suffix):
+                    return data
+        return None
+
     def parse(self):
         """
         Main entry point.
         """
         logger.info("Phase 1: Flattening Scene Graph...")
         scene = self.root.find("scene")
+        # Seed from global corpus cache so files without a <textures> block can resolve signs
+        self.textures = dict(self.texture_cache or {})
+        # Overlay local <textures> block — same file's data always wins
+        self.textures.update(self._extract_textures(scene))
         # Identity matrix as root transform
         identity = np.eye(3)
         self._traverse_recursive(scene, identity)
@@ -257,13 +293,22 @@ class FaroSceneGraphReader:
         text_content = None
         dashed = False
         thick = False
+        oriz = float(element.get("oriz", "0"))
         closed = element.get("closed", "F") == "T"
+        control_points = np.empty((0, 2))   # raw knot points (pre-transform)
+        bezier_handles = np.empty((0, 2))   # raw bezier handle points (pre-transform)
+        interpolation_method = "passthrough"
+
         if el_type == "polyline":
             verts = parse_verts("vlist")
+            control_points = verts
+            interpolation_method = "passthrough"
 
         elif el_type == "polycurve":
             raw_verts = parse_verts("pnts")
             ctrl_pts = parse_verts("ctrl")
+            control_points = raw_verts
+            bezier_handles = ctrl_pts
             if len(raw_verts) > 0 and not closed:
                 first_pt = raw_verts[0]
                 last_pt = raw_verts[-1]
@@ -271,11 +316,12 @@ class FaroSceneGraphReader:
                         raw_verts[:, 0].max(), raw_verts[:, 1].max())
                 if np.hypot(first_pt[0]-last_pt[0], first_pt[1]-last_pt[1]) < 0.25 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]):
                     closed = True
-                    
+
             if len(raw_verts) > 0 and len(ctrl_pts) > 0:
                 num_segments = len(raw_verts) - 1
                 if 2 * num_segments == len(ctrl_pts):
                     # Build cubic Bezier segments (2 control points per segment)
+                    interpolation_method = "cubic_bezier"
                     curve_segments = []
                     for i in range(num_segments):
                         P0 = raw_verts[i]
@@ -290,6 +336,7 @@ class FaroSceneGraphReader:
                     verts = np.vstack(curve_segments)
                 elif num_segments == len(ctrl_pts):
                     # Build quadratic Bezier segments (1 control point per segment)
+                    interpolation_method = "cubic_bezier"
                     curve_segments = []
                     for i in range(num_segments):
                         P0 = raw_verts[i]
@@ -303,6 +350,7 @@ class FaroSceneGraphReader:
                     verts = np.vstack(curve_segments)
 
             else:
+                interpolation_method = "catmull_rom"
                 # verts = self._interp_catmull_rom(raw_verts)
                 verts = self._interp_bezier_composite(raw_verts, tension=0.33)
 
@@ -323,6 +371,8 @@ class FaroSceneGraphReader:
             endX = float(element.get("pntEx", "0"))
             endY = float(element.get("pntEy", "0"))
             verts = np.array([[startX, startY], [endX, endY]])
+            control_points = verts
+            interpolation_method = "linear"
         elif el_type == "label":
             # For text, we might care about the insertion point
             sizeX = float(element.get("sizex", "0"))
@@ -330,6 +380,7 @@ class FaroSceneGraphReader:
             offPosx = sizeX / 2.0
             offPosy = sizeY / 2.0
             verts = np.array([[offPosx, offPosy]])
+
             text_content = element.get("text", "")
             if not text_content:
                 print("Warning: Label element without text content.")
@@ -349,6 +400,95 @@ class FaroSceneGraphReader:
         elif el_type == "flexconcretebarrier":
             print("Flex concrete barrier encountered; skipping for now.")
             pass
+
+        elif el_type == "image":
+            world_cx = float(global_matrix[0, 2])
+            world_cy = float(global_matrix[1, 2])
+            sizx = float(element.get("sizx", "0"))
+            sizy = float(element.get("sizy", "0"))
+            oriz = float(element.get("oriz", "0"))
+            img_data = element.get("img", "")
+            if not img_data:
+                return None
+            for prop in reversed(current_props):
+                if "nam" in prop and prop["nam"]:
+                    name = prop["nam"]
+                    break
+            else:
+                name = None
+            return {
+                "type": "image",
+                "name": name,
+                "posx": world_cx,
+                "posy": world_cy,
+                "sizx": sizx,
+                "sizy": sizy,
+                "oriz": oriz,
+                "img": img_data,
+                "layer": layer,
+                "verts": None,
+                "transformed_verts": np.empty((0, 2)),
+                "control_points": np.empty((0, 2)),
+                "bezier_handles": np.empty((0, 2)),
+                "transformed_control_points": np.empty((0, 2)),
+                "transformed_bezier_handles": np.empty((0, 2)),
+                "interpolation_method": "none",
+                "center": np.array([world_cx, world_cy]),
+                "transformed_center": np.array([world_cx, world_cy]),
+                "bbox": (world_cx - sizx / 2, world_cy - sizy / 2, world_cx + sizx / 2, world_cy + sizy / 2),
+                "vehicle2d": False,
+                "transform": global_matrix,
+                "text": None,
+                "dashed": False,
+                "thick": False,
+                "closed": False,
+                "lndata": {},
+            }
+
+        elif el_type == "sign":
+            world_cx = float(global_matrix[0, 2])
+            world_cy = float(global_matrix[1, 2])
+            fsx = float(element.get("fsx", "1"))
+            fsy = float(element.get("fsy", "1"))
+            oriz = float(element.get("oriz", "0"))
+            fname = element.get("fname", "")
+            img_data = self._lookup_sign_texture(fname)
+            if not img_data:
+                return None
+            for prop in reversed(current_props):
+                if "nam" in prop and prop["nam"]:
+                    name = prop["nam"]
+                    break
+            else:
+                name = None
+            return {
+                "type": "image",
+                "name": name,
+                "posx": world_cx,
+                "posy": world_cy,
+                "sizx": fsx,
+                "sizy": fsy,
+                "oriz": oriz,
+                "img": img_data,
+                "layer": layer,
+                "verts": None,
+                "transformed_verts": np.empty((0, 2)),
+                "control_points": np.empty((0, 2)),
+                "bezier_handles": np.empty((0, 2)),
+                "transformed_control_points": np.empty((0, 2)),
+                "transformed_bezier_handles": np.empty((0, 2)),
+                "interpolation_method": "none",
+                "center": np.array([world_cx, world_cy]),
+                "transformed_center": np.array([world_cx, world_cy]),
+                "bbox": (world_cx - fsx / 2, world_cy - fsy / 2, world_cx + fsx / 2, world_cy + fsy / 2),
+                "vehicle2d": False,
+                "transform": global_matrix,
+                "text": None,
+                "dashed": False,
+                "thick": False,
+                "closed": False,
+                "lndata": {},
+            }
 
         lndata_dict = {}
         lndata = element.find("lndata")
@@ -382,11 +522,17 @@ class FaroSceneGraphReader:
                 "name": name,
                 "verts": verts,
                 "transformed_verts": self._apply_transform(verts, global_matrix),
+                "control_points": control_points,
+                "bezier_handles": bezier_handles,
+                "transformed_control_points": self._apply_transform(control_points, global_matrix),
+                "transformed_bezier_handles": self._apply_transform(bezier_handles, global_matrix),
+                "interpolation_method": interpolation_method,
                 "center": center,
                 "transformed_center": self._apply_transform(center[np.newaxis], global_matrix)[0],
                 "bbox": bbox,
                 "vehicle2d": element.get("vehicle2d", "F") == "T",
                 "transform": global_matrix,
+                "oriz": oriz,
                 "text": text_content,
                 "dashed": dashed,
                 "thick": thick,
@@ -630,6 +776,8 @@ class FaroSceneGraphReader:
                     roadway.append(p)
                 # else:
                     # others.append(p)
+            elif p["type"] == "image":
+                self.scene_objects["images"].append(p)
             else:
                 others.append(p)
 

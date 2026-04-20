@@ -8,6 +8,7 @@
       "Bash(python:*)",
       "Bash(.venv/bin/pip list:*)",
       "Bash(python3:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(wc:*)",
       "WebFetch(domain:contribution.usercontent.google.com)",
       "Bash(python3:*)",

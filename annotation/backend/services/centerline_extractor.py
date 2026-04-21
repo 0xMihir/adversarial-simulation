@@ -5,8 +5,8 @@ All lanes start with status=AUTO.
 import uuid
 
 from faro import get_delaunay_centerlines
-from ..models.annotation import ElementStatus, LaneAnnotation
-from ..models.scene import ParsedScene, Point2D
+from schema.annotation import ElementStatus, LaneAnnotation
+from schema.scene import ParsedScene, Point2D
 
 
 def _roadway_items_from_scene(scene: ParsedScene) -> list[dict]:

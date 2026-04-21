@@ -4,7 +4,7 @@ PUT /api/annotations/{id}   — partial update with corrections log
 """
 from fastapi import APIRouter, HTTPException
 
-from ..models.annotation import CaseAnnotation, CaseAnnotationUpdate
+from schema.annotation import CaseAnnotation, CaseAnnotationUpdate
 from ..services import annotations as ann_service
 
 router = APIRouter()

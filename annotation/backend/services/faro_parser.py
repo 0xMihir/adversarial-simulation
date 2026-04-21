@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from faro import FaroSceneGraphReader
-from ..models.scene import (
+from schema.scene import (
     AffineMatrix,
     ImageElement,
     ParsedScene,

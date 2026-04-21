@@ -3,8 +3,8 @@ Wraps preprocessing/traj.py and maps output to list[VehicleAnnotation].
 All vehicles start with status=AUTO.
 """
 from faro import extract_vehicle_chronology
-from ..models.annotation import ElementStatus, VehicleAnnotation, VehicleWaypoint
-from ..models.scene import ParsedScene, Point2D
+from schema.annotation import ElementStatus, VehicleAnnotation, VehicleWaypoint
+from schema.scene import ParsedScene, Point2D
 
 
 def _scene_for_traj(scene: ParsedScene) -> dict:

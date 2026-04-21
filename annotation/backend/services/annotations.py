@@ -7,7 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from ..models.annotation import CaseAnnotation, CaseAnnotationUpdate, CorrectionRecord
+from schema.annotation import CaseAnnotation, CaseAnnotationUpdate
 
 ANNOTATIONS_DIR = Path(__file__).parents[2] / "annotations"
 ANNOTATIONS_DIR.mkdir(exist_ok=True)

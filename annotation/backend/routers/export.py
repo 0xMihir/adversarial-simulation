@@ -9,8 +9,8 @@ from pathlib import Path
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from ..models.annotation import ElementStatus
-from ..models.export import GraphEdge, GraphNode, SceneGraph
+from schema.annotation import ElementStatus
+from schema.export import GraphEdge, GraphNode, SceneGraph
 from ..services import annotations as ann_service
 
 router = APIRouter()

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from ..models.annotation import CaseAnnotation, CaseSummary, ElementStatus
+from schema.annotation import CaseAnnotation, CaseSummary, ElementStatus
 from ..services import annotations as ann_service
 from ..services.centerline_extractor import extract_centerlines
 from ..services.clf_service import flush, get_cache, get_pipeline

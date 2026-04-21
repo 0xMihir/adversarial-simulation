@@ -1,0 +1,103 @@
+syntax = "proto3";
+package synthetic.loaders.proto;
+
+// Minimal subset of the Waymo Open Dataset scenario.proto
+// Only fields needed by WOMDScenarioLoader are defined here.
+// Full spec: https://github.com/waymo-research/waymo-open-dataset/blob/master/waymo_open_dataset/protos/
+
+message MapPoint {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message LaneNeighbor {
+  int32 feature_id = 1;
+}
+
+enum BoundaryType {
+  BOUNDARY_TYPE_UNKNOWN = 0;
+  BOUNDARY_TYPE_ROAD_EDGE = 1;
+  BOUNDARY_TYPE_ROAD_LINE = 2;
+}
+
+message BoundarySegment {
+  int32 lane_start_index = 1;
+  int32 lane_end_index = 2;
+  BoundaryType boundary_type = 3;
+  int32 boundary_feature_id = 4;
+}
+
+message Lane {
+  enum LaneType {
+    TYPE_UNDEFINED = 0;
+    TYPE_FREEWAY = 1;
+    TYPE_SURFACE_STREET = 2;
+    TYPE_BIKE_LANE = 3;
+  }
+  repeated MapPoint polyline = 1;
+  LaneType type = 2;
+  repeated int32 entry_lanes = 3;
+  repeated int32 exit_lanes = 4;
+  repeated LaneNeighbor left_neighbors = 5;
+  repeated LaneNeighbor right_neighbors = 6;
+  repeated BoundarySegment left_boundaries = 7;
+  repeated BoundarySegment right_boundaries = 8;
+  bool interpolating = 9;
+}
+
+message RoadLine {
+  enum RoadLineType {
+    TYPE_UNKNOWN = 0;
+    TYPE_BROKEN_SINGLE_WHITE = 1;
+    TYPE_SOLID_SINGLE_WHITE = 2;
+    TYPE_SOLID_DOUBLE_WHITE = 3;
+    TYPE_BROKEN_SINGLE_YELLOW = 4;
+    TYPE_BROKEN_DOUBLE_YELLOW = 5;
+    TYPE_SOLID_SINGLE_YELLOW = 6;
+    TYPE_SOLID_DOUBLE_YELLOW = 7;
+    TYPE_PASSING_DOUBLE_YELLOW = 8;
+  }
+  repeated MapPoint polyline = 1;
+  RoadLineType type = 2;
+}
+
+message RoadEdge {
+  enum RoadEdgeType {
+    TYPE_UNKNOWN = 0;
+    TYPE_ROAD_EDGE_BOUNDARY = 1;
+    TYPE_ROAD_EDGE_MEDIAN = 2;
+  }
+  repeated MapPoint polyline = 1;
+  RoadEdgeType type = 2;
+}
+
+message StopSign {
+  repeated MapPoint lane = 1;
+  MapPoint position = 2;
+}
+
+message Crosswalk {
+  repeated MapPoint polygon = 1;
+}
+
+message SpeedBump {
+  repeated MapPoint polygon = 1;
+}
+
+message MapFeature {
+  int32 id = 1;
+  oneof feature_data {
+    Lane lane = 3;
+    RoadLine road_line = 4;
+    RoadEdge road_edge = 5;
+    StopSign stop_sign = 6;
+    Crosswalk crosswalk = 7;
+    SpeedBump speed_bump = 8;
+  }
+}
+
+message Scenario {
+  string scenario_id = 1;
+  repeated MapFeature map_features = 7;
+}

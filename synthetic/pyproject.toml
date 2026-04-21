@@ -1,0 +1,20 @@
+[project]
+name = "synthetic"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "numpy>=2.0",
+    "scipy>=1.16",
+    "schema",
+]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["synthetic", "synthetic.loaders", "synthetic.loaders.proto"]
+
+[tool.setuptools.package-dir]
+"synthetic" = "."

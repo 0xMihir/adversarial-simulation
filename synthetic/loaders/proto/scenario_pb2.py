@@ -24,41 +24,45 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0escenario.proto\x12\x17synthetic.loaders.proto\"+\n\x08MapPoint\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\"\"\n\x0cLaneNeighbor\x12\x12\n\nfeature_id\x18\x01 \x01(\x05\"\x9e\x01\n\x0f\x42oundarySegment\x12\x18\n\x10lane_start_index\x18\x01 \x01(\x05\x12\x16\n\x0elane_end_index\x18\x02 \x01(\x05\x12<\n\rboundary_type\x18\x03 \x01(\x0e\x32%.synthetic.loaders.proto.BoundaryType\x12\x1b\n\x13\x62oundary_feature_id\x18\x04 \x01(\x05\"\x96\x04\n\x04Lane\x12\x33\n\x08polyline\x18\x01 \x03(\x0b\x32!.synthetic.loaders.proto.MapPoint\x12\x34\n\x04type\x18\x02 \x01(\x0e\x32&.synthetic.loaders.proto.Lane.LaneType\x12\x13\n\x0b\x65ntry_lanes\x18\x03 \x03(\x05\x12\x12\n\nexit_lanes\x18\x04 \x03(\x05\x12=\n\x0eleft_neighbors\x18\x05 \x03(\x0b\x32%.synthetic.loaders.proto.LaneNeighbor\x12>\n\x0fright_neighbors\x18\x06 \x03(\x0b\x32%.synthetic.loaders.proto.LaneNeighbor\x12\x41\n\x0fleft_boundaries\x18\x07 \x03(\x0b\x32(.synthetic.loaders.proto.BoundarySegment\x12\x42\n\x10right_boundaries\x18\x08 \x03(\x0b\x32(.synthetic.loaders.proto.BoundarySegment\x12\x15\n\rinterpolating\x18\t \x01(\x08\"]\n\x08LaneType\x12\x12\n\x0eTYPE_UNDEFINED\x10\x00\x12\x10\n\x0cTYPE_FREEWAY\x10\x01\x12\x17\n\x13TYPE_SURFACE_STREET\x10\x02\x12\x12\n\x0eTYPE_BIKE_LANE\x10\x03\"\x92\x03\n\x08RoadLine\x12\x33\n\x08polyline\x18\x01 \x03(\x0b\x32!.synthetic.loaders.proto.MapPoint\x12<\n\x04type\x18\x02 \x01(\x0e\x32..synthetic.loaders.proto.RoadLine.RoadLineType\"\x92\x02\n\x0cRoadLineType\x12\x10\n\x0cTYPE_UNKNOWN\x10\x00\x12\x1c\n\x18TYPE_BROKEN_SINGLE_WHITE\x10\x01\x12\x1b\n\x17TYPE_SOLID_SINGLE_WHITE\x10\x02\x12\x1b\n\x17TYPE_SOLID_DOUBLE_WHITE\x10\x03\x12\x1d\n\x19TYPE_BROKEN_SINGLE_YELLOW\x10\x04\x12\x1d\n\x19TYPE_BROKEN_DOUBLE_YELLOW\x10\x05\x12\x1c\n\x18TYPE_SOLID_SINGLE_YELLOW\x10\x06\x12\x1c\n\x18TYPE_SOLID_DOUBLE_YELLOW\x10\x07\x12\x1e\n\x1aTYPE_PASSING_DOUBLE_YELLOW\x10\x08\"\xd7\x01\n\x08RoadEdge\x12\x33\n\x08polyline\x18\x01 \x03(\x0b\x32!.synthetic.loaders.proto.MapPoint\x12<\n\x04type\x18\x02 \x01(\x0e\x32..synthetic.loaders.proto.RoadEdge.RoadEdgeType\"X\n\x0cRoadEdgeType\x12\x10\n\x0cTYPE_UNKNOWN\x10\x00\x12\x1b\n\x17TYPE_ROAD_EDGE_BOUNDARY\x10\x01\x12\x19\n\x15TYPE_ROAD_EDGE_MEDIAN\x10\x02\"p\n\x08StopSign\x12/\n\x04lane\x18\x01 \x03(\x0b\x32!.synthetic.loaders.proto.MapPoint\x12\x33\n\x08position\x18\x02 \x01(\x0b\x32!.synthetic.loaders.proto.MapPoint\"?\n\tCrosswalk\x12\x32\n\x07polygon\x18\x01 \x03(\x0b\x32!.synthetic.loaders.proto.MapPoint\"?\n\tSpeedBump\x12\x32\n\x07polygon\x18\x01 \x03(\x0b\x32!.synthetic.loaders.proto.MapPoint\"\xf2\x02\n\nMapFeature\x12\n\n\x02id\x18\x01 \x01(\x05\x12-\n\x04lane\x18\x03 \x01(\x0b\x32\x1d.synthetic.loaders.proto.LaneH\x00\x12\x36\n\troad_line\x18\x04 \x01(\x0b\x32!.synthetic.loaders.proto.RoadLineH\x00\x12\x36\n\troad_edge\x18\x05 \x01(\x0b\x32!.synthetic.loaders.proto.RoadEdgeH\x00\x12\x36\n\tstop_sign\x18\x06 \x01(\x0b\x32!.synthetic.loaders.proto.StopSignH\x00\x12\x37\n\tcrosswalk\x18\x07 \x01(\x0b\x32\".synthetic.loaders.proto.CrosswalkH\x00\x12\x38\n\nspeed_bump\x18\x08 \x01(\x0b\x32\".synthetic.loaders.proto.SpeedBumpH\x00\x42\x0e\n\x0c\x66\x65\x61ture_data\"Z\n\x08Scenario\x12\x13\n\x0bscenario_id\x18\x01 \x01(\t\x12\x39\n\x0cmap_features\x18\x07 \x03(\x0b\x32#.synthetic.loaders.proto.MapFeature*c\n\x0c\x42oundaryType\x12\x19\n\x15\x42OUNDARY_TYPE_UNKNOWN\x10\x00\x12\x1b\n\x17\x42OUNDARY_TYPE_ROAD_EDGE\x10\x01\x12\x1b\n\x17\x42OUNDARY_TYPE_ROAD_LINE\x10\x02\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0escenario.proto\x12\x12waymo.open_dataset\"+\n\x08MapPoint\x12\t\n\x01x\x18\x01 \x01(\x01\x12\t\n\x01y\x18\x02 \x01(\x01\x12\t\n\x01z\x18\x03 \x01(\x01\"`\n\x0f\x42oundarySegment\x12\x18\n\x10lane_start_index\x18\x01 \x01(\x05\x12\x16\n\x0elane_end_index\x18\x02 \x01(\x05\x12\x1b\n\x13\x62oundary_feature_id\x18\x03 \x01(\x03\"\"\n\x0cLaneNeighbor\x12\x12\n\nfeature_id\x18\x01 \x01(\x03\"\x8c\x04\n\nLaneCenter\x12\x35\n\x04type\x18\x02 \x01(\x0e\x32\'.waymo.open_dataset.LaneCenter.LaneType\x12\x15\n\rinterpolating\x18\x03 \x01(\x08\x12.\n\x08polyline\x18\x08 \x03(\x0b\x32\x1c.waymo.open_dataset.MapPoint\x12\x17\n\x0b\x65ntry_lanes\x18\t \x03(\x03\x42\x02\x10\x01\x12\x16\n\nexit_lanes\x18\n \x03(\x03\x42\x02\x10\x01\x12\x38\n\x0eleft_neighbors\x18\x0b \x03(\x0b\x32 .waymo.open_dataset.LaneNeighbor\x12\x39\n\x0fright_neighbors\x18\x0c \x03(\x0b\x32 .waymo.open_dataset.LaneNeighbor\x12<\n\x0fleft_boundaries\x18\r \x03(\x0b\x32#.waymo.open_dataset.BoundarySegment\x12=\n\x10right_boundaries\x18\x0e \x03(\x0b\x32#.waymo.open_dataset.BoundarySegment\"]\n\x08LaneType\x12\x12\n\x0eTYPE_UNDEFINED\x10\x00\x12\x10\n\x0cTYPE_FREEWAY\x10\x01\x12\x17\n\x13TYPE_SURFACE_STREET\x10\x02\x12\x12\n\x0eTYPE_BIKE_LANE\x10\x03\"\xcd\x01\n\x08RoadEdge\x12\x37\n\x04type\x18\x01 \x01(\x0e\x32).waymo.open_dataset.RoadEdge.RoadEdgeType\x12.\n\x08polyline\x18\x02 \x03(\x0b\x32\x1c.waymo.open_dataset.MapPoint\"X\n\x0cRoadEdgeType\x12\x10\n\x0cTYPE_UNKNOWN\x10\x00\x12\x1b\n\x17TYPE_ROAD_EDGE_BOUNDARY\x10\x01\x12\x19\n\x15TYPE_ROAD_EDGE_MEDIAN\x10\x02\"\x88\x03\n\x08RoadLine\x12\x37\n\x04type\x18\x01 \x01(\x0e\x32).waymo.open_dataset.RoadLine.RoadLineType\x12.\n\x08polyline\x18\x02 \x03(\x0b\x32\x1c.waymo.open_dataset.MapPoint\"\x92\x02\n\x0cRoadLineType\x12\x10\n\x0cTYPE_UNKNOWN\x10\x00\x12\x1c\n\x18TYPE_BROKEN_SINGLE_WHITE\x10\x01\x12\x1b\n\x17TYPE_SOLID_SINGLE_WHITE\x10\x02\x12\x1b\n\x17TYPE_SOLID_DOUBLE_WHITE\x10\x03\x12\x1d\n\x19TYPE_BROKEN_SINGLE_YELLOW\x10\x04\x12\x1d\n\x19TYPE_BROKEN_DOUBLE_YELLOW\x10\x05\x12\x1c\n\x18TYPE_SOLID_SINGLE_YELLOW\x10\x06\x12\x1c\n\x18TYPE_SOLID_DOUBLE_YELLOW\x10\x07\x12\x1e\n\x1aTYPE_PASSING_DOUBLE_YELLOW\x10\x08\"H\n\x08StopSign\x12\x0c\n\x04lane\x18\x01 \x03(\x03\x12.\n\x08position\x18\x02 \x01(\x0b\x32\x1c.waymo.open_dataset.MapPoint\":\n\tCrosswalk\x12-\n\x07polygon\x18\x01 \x03(\x0b\x32\x1c.waymo.open_dataset.MapPoint\":\n\tSpeedBump\x12-\n\x07polygon\x18\x01 \x03(\x0b\x32\x1c.waymo.open_dataset.MapPoint\"9\n\x08\x44riveway\x12-\n\x07polygon\x18\x01 \x03(\x0b\x32\x1c.waymo.open_dataset.MapPoint\"\x8c\x03\n\nMapFeature\x12\n\n\x02id\x18\x01 \x01(\x03\x12.\n\x04lane\x18\x03 \x01(\x0b\x32\x1e.waymo.open_dataset.LaneCenterH\x00\x12\x31\n\troad_line\x18\x04 \x01(\x0b\x32\x1c.waymo.open_dataset.RoadLineH\x00\x12\x31\n\troad_edge\x18\x05 \x01(\x0b\x32\x1c.waymo.open_dataset.RoadEdgeH\x00\x12\x31\n\tstop_sign\x18\x07 \x01(\x0b\x32\x1c.waymo.open_dataset.StopSignH\x00\x12\x32\n\tcrosswalk\x18\x08 \x01(\x0b\x32\x1d.waymo.open_dataset.CrosswalkH\x00\x12\x33\n\nspeed_bump\x18\t \x01(\x0b\x32\x1d.waymo.open_dataset.SpeedBumpH\x00\x12\x30\n\x08\x64riveway\x18\n \x01(\x0b\x32\x1c.waymo.open_dataset.DrivewayH\x00\x42\x0e\n\x0c\x66\x65\x61ture_data\"U\n\x08Scenario\x12\x13\n\x0bscenario_id\x18\x05 \x01(\t\x12\x34\n\x0cmap_features\x18\x08 \x03(\x0b\x32\x1e.waymo.open_dataset.MapFeature')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'scenario_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_BOUNDARYTYPE']._serialized_start=2154
-  _globals['_BOUNDARYTYPE']._serialized_end=2253
-  _globals['_MAPPOINT']._serialized_start=43
-  _globals['_MAPPOINT']._serialized_end=86
-  _globals['_LANENEIGHBOR']._serialized_start=88
-  _globals['_LANENEIGHBOR']._serialized_end=122
-  _globals['_BOUNDARYSEGMENT']._serialized_start=125
-  _globals['_BOUNDARYSEGMENT']._serialized_end=283
-  _globals['_LANE']._serialized_start=286
-  _globals['_LANE']._serialized_end=820
-  _globals['_LANE_LANETYPE']._serialized_start=727
-  _globals['_LANE_LANETYPE']._serialized_end=820
-  _globals['_ROADLINE']._serialized_start=823
-  _globals['_ROADLINE']._serialized_end=1225
-  _globals['_ROADLINE_ROADLINETYPE']._serialized_start=951
-  _globals['_ROADLINE_ROADLINETYPE']._serialized_end=1225
-  _globals['_ROADEDGE']._serialized_start=1228
-  _globals['_ROADEDGE']._serialized_end=1443
-  _globals['_ROADEDGE_ROADEDGETYPE']._serialized_start=1355
-  _globals['_ROADEDGE_ROADEDGETYPE']._serialized_end=1443
-  _globals['_STOPSIGN']._serialized_start=1445
-  _globals['_STOPSIGN']._serialized_end=1557
-  _globals['_CROSSWALK']._serialized_start=1559
-  _globals['_CROSSWALK']._serialized_end=1622
-  _globals['_SPEEDBUMP']._serialized_start=1624
-  _globals['_SPEEDBUMP']._serialized_end=1687
-  _globals['_MAPFEATURE']._serialized_start=1690
-  _globals['_MAPFEATURE']._serialized_end=2060
-  _globals['_SCENARIO']._serialized_start=2062
-  _globals['_SCENARIO']._serialized_end=2152
+  _globals['_LANECENTER'].fields_by_name['entry_lanes']._loaded_options = None
+  _globals['_LANECENTER'].fields_by_name['entry_lanes']._serialized_options = b'\020\001'
+  _globals['_LANECENTER'].fields_by_name['exit_lanes']._loaded_options = None
+  _globals['_LANECENTER'].fields_by_name['exit_lanes']._serialized_options = b'\020\001'
+  _globals['_MAPPOINT']._serialized_start=38
+  _globals['_MAPPOINT']._serialized_end=81
+  _globals['_BOUNDARYSEGMENT']._serialized_start=83
+  _globals['_BOUNDARYSEGMENT']._serialized_end=179
+  _globals['_LANENEIGHBOR']._serialized_start=181
+  _globals['_LANENEIGHBOR']._serialized_end=215
+  _globals['_LANECENTER']._serialized_start=218
+  _globals['_LANECENTER']._serialized_end=742
+  _globals['_LANECENTER_LANETYPE']._serialized_start=649
+  _globals['_LANECENTER_LANETYPE']._serialized_end=742
+  _globals['_ROADEDGE']._serialized_start=745
+  _globals['_ROADEDGE']._serialized_end=950
+  _globals['_ROADEDGE_ROADEDGETYPE']._serialized_start=862
+  _globals['_ROADEDGE_ROADEDGETYPE']._serialized_end=950
+  _globals['_ROADLINE']._serialized_start=953
+  _globals['_ROADLINE']._serialized_end=1345
+  _globals['_ROADLINE_ROADLINETYPE']._serialized_start=1071
+  _globals['_ROADLINE_ROADLINETYPE']._serialized_end=1345
+  _globals['_STOPSIGN']._serialized_start=1347
+  _globals['_STOPSIGN']._serialized_end=1419
+  _globals['_CROSSWALK']._serialized_start=1421
+  _globals['_CROSSWALK']._serialized_end=1479
+  _globals['_SPEEDBUMP']._serialized_start=1481
+  _globals['_SPEEDBUMP']._serialized_end=1539
+  _globals['_DRIVEWAY']._serialized_start=1541
+  _globals['_DRIVEWAY']._serialized_end=1598
+  _globals['_MAPFEATURE']._serialized_start=1601
+  _globals['_MAPFEATURE']._serialized_end=1997
+  _globals['_SCENARIO']._serialized_start=1999
+  _globals['_SCENARIO']._serialized_end=2084
 # @@protoc_insertion_point(module_scope)

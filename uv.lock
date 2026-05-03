@@ -33,7 +33,6 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "accelerate" },
-    { name = "av2" },
     { name = "crc32c" },
     { name = "faro" },
     { name = "fastapi" },
@@ -75,7 +74,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=1.12.0" },
-    { name = "av2", specifier = ">=0.3.6" },
     { name = "crc32c", specifier = ">=2.3" },
     { name = "faro", editable = "preprocessing" },
     { name = "fastapi", specifier = ">=0.135.2" },
@@ -4038,6 +4036,7 @@ name = "synthetic"
 version = "0.1.0"
 source = { editable = "synthetic" }
 dependencies = [
+    { name = "av2" },
     { name = "numpy" },
     { name = "pydantic" },
     { name = "schema" },
@@ -4046,6 +4045,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "av2", specifier = ">=0.3.6" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "schema" },

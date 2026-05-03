@@ -78,7 +78,6 @@ def _iter_tfrecords(path: Path) -> Iterator[bytes]:
             if len(header) < 12:
                 raise ValueError(f"Truncated TFRecord header in {path}")
             length = struct.unpack("<Q", header[:8])[0]
-            f.read(4)  # skip data CRC (we trust the file)
             data = f.read(length)
             if len(data) < length:
                 raise ValueError(f"Truncated TFRecord data in {path}")
@@ -118,7 +117,7 @@ class WOMDScenarioLoader:
             )
 
         index: dict[str, Path] = {}
-        for tfr in sorted(self.womd_root.rglob("*.tfrecord")):
+        for tfr in sorted(self.womd_root.rglob("*.tfrecord-*")):
             for raw in _iter_tfrecords(tfr):
                 sc = scenario_pb2.Scenario()
                 sc.ParseFromString(raw)

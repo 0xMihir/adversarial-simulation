@@ -16,6 +16,7 @@ import numpy as np
 
 from synthetic.schema import WOMDRoadLineType
 from .base import LaneSegmentData
+from av2.map.map_api import ArgoverseStaticMap
 
 AV2_TO_WOMD: dict[str, WOMDRoadLineType] = {
     "SOLID_WHITE": WOMDRoadLineType.TYPE_SOLID_SINGLE_WHITE,
@@ -33,7 +34,7 @@ def _map_marking(av2_type: str) -> WOMDRoadLineType:
 
 class AV2ScenarioLoader:
     """
-    Loads AV2 motion-forecasting map data via av2.map.av2_map_api.ArgoverseStaticMap.
+    Loads AV2 motion-forecasting map data via av2.map.map_api.ArgoverseStaticMap.
     Results are cached per-scenario (LRU, max 128 entries).
     """
 
@@ -48,12 +49,7 @@ class AV2ScenarioLoader:
         return self._load_cached(scenario_id)
 
     def _load_scenario_inner(self, scenario_id: str) -> list[LaneSegmentData]:
-        try:
-            from av2.map.av2_map_api import ArgoverseStaticMap
-        except ImportError as e:
-            raise ImportError("av2 package required: uv add av2") from e
-
-        map_dir = self.av2_root / scenario_id / "map"
+        map_dir = self.av2_root / scenario_id 
         avm = ArgoverseStaticMap.from_map_dir(map_dir, build_raster=False)
         lane_segments = avm.get_scenario_lane_segments()
 

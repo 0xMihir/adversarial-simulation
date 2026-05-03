@@ -1,49 +1,52 @@
-syntax = "proto3";
-package synthetic.loaders.proto;
+syntax = "proto2";
+package waymo.open_dataset;
 
-// Minimal subset of the Waymo Open Dataset scenario.proto
-// Only fields needed by WOMDScenarioLoader are defined here.
-// Full spec: https://github.com/waymo-research/waymo-open-dataset/blob/master/waymo_open_dataset/protos/
+// Derived from the official Waymo Open Dataset protos:
+// src/waymo_open_dataset/protos/map.proto
+// src/waymo_open_dataset/protos/scenario.proto
 
 message MapPoint {
-  float x = 1;
-  float y = 2;
-  float z = 3;
-}
-
-message LaneNeighbor {
-  int32 feature_id = 1;
-}
-
-enum BoundaryType {
-  BOUNDARY_TYPE_UNKNOWN = 0;
-  BOUNDARY_TYPE_ROAD_EDGE = 1;
-  BOUNDARY_TYPE_ROAD_LINE = 2;
+  optional double x = 1;
+  optional double y = 2;
+  optional double z = 3;
 }
 
 message BoundarySegment {
-  int32 lane_start_index = 1;
-  int32 lane_end_index = 2;
-  BoundaryType boundary_type = 3;
-  int32 boundary_feature_id = 4;
+  optional int32 lane_start_index = 1;
+  optional int32 lane_end_index = 2;
+  optional int64 boundary_feature_id = 3;
 }
 
-message Lane {
+message LaneNeighbor {
+  optional int64 feature_id = 1;
+}
+
+message LaneCenter {
   enum LaneType {
     TYPE_UNDEFINED = 0;
     TYPE_FREEWAY = 1;
     TYPE_SURFACE_STREET = 2;
     TYPE_BIKE_LANE = 3;
   }
-  repeated MapPoint polyline = 1;
-  LaneType type = 2;
-  repeated int32 entry_lanes = 3;
-  repeated int32 exit_lanes = 4;
-  repeated LaneNeighbor left_neighbors = 5;
-  repeated LaneNeighbor right_neighbors = 6;
-  repeated BoundarySegment left_boundaries = 7;
-  repeated BoundarySegment right_boundaries = 8;
-  bool interpolating = 9;
+  optional LaneType type = 2;
+  optional bool interpolating = 3;
+  repeated MapPoint polyline = 8;
+  repeated int64 entry_lanes = 9 [packed = true];
+  repeated int64 exit_lanes = 10 [packed = true];
+  repeated LaneNeighbor left_neighbors = 11;
+  repeated LaneNeighbor right_neighbors = 12;
+  repeated BoundarySegment left_boundaries = 13;
+  repeated BoundarySegment right_boundaries = 14;
+}
+
+message RoadEdge {
+  enum RoadEdgeType {
+    TYPE_UNKNOWN = 0;
+    TYPE_ROAD_EDGE_BOUNDARY = 1;
+    TYPE_ROAD_EDGE_MEDIAN = 2;
+  }
+  optional RoadEdgeType type = 1;
+  repeated MapPoint polyline = 2;
 }
 
 message RoadLine {
@@ -58,23 +61,13 @@ message RoadLine {
     TYPE_SOLID_DOUBLE_YELLOW = 7;
     TYPE_PASSING_DOUBLE_YELLOW = 8;
   }
-  repeated MapPoint polyline = 1;
-  RoadLineType type = 2;
-}
-
-message RoadEdge {
-  enum RoadEdgeType {
-    TYPE_UNKNOWN = 0;
-    TYPE_ROAD_EDGE_BOUNDARY = 1;
-    TYPE_ROAD_EDGE_MEDIAN = 2;
-  }
-  repeated MapPoint polyline = 1;
-  RoadEdgeType type = 2;
+  optional RoadLineType type = 1;
+  repeated MapPoint polyline = 2;
 }
 
 message StopSign {
-  repeated MapPoint lane = 1;
-  MapPoint position = 2;
+  repeated int64 lane = 1;
+  optional MapPoint position = 2;
 }
 
 message Crosswalk {
@@ -85,19 +78,24 @@ message SpeedBump {
   repeated MapPoint polygon = 1;
 }
 
+message Driveway {
+  repeated MapPoint polygon = 1;
+}
+
 message MapFeature {
-  int32 id = 1;
+  optional int64 id = 1;
   oneof feature_data {
-    Lane lane = 3;
+    LaneCenter lane = 3;
     RoadLine road_line = 4;
     RoadEdge road_edge = 5;
-    StopSign stop_sign = 6;
-    Crosswalk crosswalk = 7;
-    SpeedBump speed_bump = 8;
+    StopSign stop_sign = 7;
+    Crosswalk crosswalk = 8;
+    SpeedBump speed_bump = 9;
+    Driveway driveway = 10;
   }
 }
 
 message Scenario {
-  string scenario_id = 1;
-  repeated MapFeature map_features = 7;
+  optional string scenario_id = 5;
+  repeated MapFeature map_features = 8;
 }

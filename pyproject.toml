@@ -8,7 +8,6 @@ dependencies = [
     "faro",
     "schema",
     "synthetic",
-    "av2>=0.3.6",
     "shapely>=2.0.0",
     "crc32c>=2.3",
     "noise>=1.2.2",

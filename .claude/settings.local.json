@@ -15,7 +15,19 @@
       "Bash(uv sync:*)",
       "Bash(uv run:*)",
       "Read(//private/tmp/**)",
-      "Bash(protoc:*)"
+      "Bash(protoc:*)",
+      "Read(//home/patil139/scratch/adversarial-simulation/synthetic/loaders/**)",
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/synthetic/loaders/**)",
+      "Read(//home/patil139/scratch/adversarial-simulation/notebooks/**)",
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/notebooks/**)",
+      "Read(//home/patil139/scratch/adversarial-simulation/synthetic/**)",
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/synthetic/**)"
+    ],
+    "additionalDirectories": [
+      "/home/patil139/scratch/adversarial-simulation/synthetic/loaders",
+      "/scratch/gilbreth/patil139/adversarial-simulation/synthetic/loaders",
+      "/home/patil139/scratch/adversarial-simulation/synthetic",
+      "/scratch/gilbreth/patil139/adversarial-simulation/synthetic"
     ]
   }
 }

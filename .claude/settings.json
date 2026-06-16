@@ -1,7 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl -s \"https://raw.githubusercontent.com/waymo-research/waymo-open-dataset/master/src/waymo_open_dataset/protos/map.proto\")"
+      "Bash(uv add:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:pyclothoids.readthedocs.io)",
+      "Bash(jupyter nbconvert:*)",
+      "Bash(python:*)",
+      "Bash(.venv/bin/pip list:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(wc:*)",
+      "WebFetch(domain:contribution.usercontent.google.com)",
+      "Bash(python3:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run:*)",
+      "Read(//private/tmp/**)",
+      "Bash(protoc:*)",
+      "Read(//home/patil139/scratch/adversarial-simulation/synthetic/loaders/**)",
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/synthetic/loaders/**)",
+      "Read(//home/patil139/scratch/adversarial-simulation/notebooks/**)",
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/notebooks/**)",
+      "Read(//home/patil139/scratch/adversarial-simulation/synthetic/**)",
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/synthetic/**)"
+    ],
+    "additionalDirectories": [
+      "/home/patil139/scratch/adversarial-simulation/synthetic/loaders",
+      "/scratch/gilbreth/patil139/adversarial-simulation/synthetic/loaders"
     ]
   }
 }

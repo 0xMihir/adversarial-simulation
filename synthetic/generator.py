@@ -14,7 +14,7 @@ import numpy as np
 
 from schema.scene import AffineMatrix, ParsedScene, Point2D, SceneElement, TextElement
 from synthetic.config import CurriculumConfig, CurriculumStage
-from synthetic.loaders.base import LaneSegmentData, ScenarioLoader
+from synthetic.loaders.base import LaneSegmentData, MapFeatureData, ScenarioLoader
 from synthetic.normalization import DiagramNormalizer, _pts_to_np
 from synthetic.randomization import (
     _apply_layout_to_segments,
@@ -73,7 +73,7 @@ def _mark_type_to_class(womd_type: WOMDRoadLineType) -> ElementClass:
 
 def _is_shoulder(seg: LaneSegmentData, all_segments: list[LaneSegmentData]) -> bool:
     """Heuristic: a boundary is a shoulder line if the segment has no left or right neighbor."""
-    return seg.left_neighbor_id is None or seg.right_neighbor_id is None
+    return not seg.left_neighbor_ids or not seg.right_neighbor_ids
 
 
 class SyntheticSceneGenerator:
@@ -117,7 +117,7 @@ class SyntheticSceneGenerator:
         rng = np.random.default_rng(seed_used)
         cfg = self.curriculum_cfg.for_stage(stage)
 
-        segments = self.loader.load_scenario(scenario_id)
+        segments, map_features = self.loader.load_scenario(scenario_id)
         if not segments:
             raise ValueError(f"Scenario {scenario_id!r} yielded no surface lane segments")
 
@@ -126,9 +126,9 @@ class SyntheticSceneGenerator:
         segments = _apply_layout_to_segments(segments, M_layout)
 
         # Module 6: crop to a focal region
-        all_cl = np.concatenate([s.centerline_xy for s in segments if s.centerline_xy.shape[0] > 0], axis=0)
-        focal_point = all_cl.mean(axis=0)
-        segments, crop_bbox = subset_network(segments, focal_point, rng, cfg)
+        # all_cl = np.concatenate([s.centerline_xy for s in segments if s.centerline_xy.shape[0] > 0], axis=0)
+        # focal_point = all_cl.mean(axis=0)
+        # segments, crop_bbox = subset_network(segments, focal_point, rng, cfg)
 
         if not segments:
             raise ValueError(f"Scenario {scenario_id!r}: no segments survived subsetting")
@@ -141,7 +141,7 @@ class SyntheticSceneGenerator:
             shoulders,
             road_edges,
             lane_id_to_elem_ids,
-        ) = self._segments_to_elements(segments, rng)
+        ) = self._segments_to_elements(segments, map_features, rng)
 
         # Module 1: drop primitives
         lane_markings, stop_lines, crosswalks, shoulders, dropped_ids = drop_primitives(
@@ -166,12 +166,14 @@ class SyntheticSceneGenerator:
         # Module 4: crosswalk variation (replace existing crosswalks)
         if rng.random() < cfg.p_vary_crosswalk and segments:
             seg = segments[rng.integers(0, len(segments))]
-            if seg.left_boundary_xy.shape[0] >= 2:
-                crosswalks = vary_crosswalk(
-                    seg.left_boundary_xy[0], seg.left_boundary_xy[-1],
-                    road_width_m=float(rng.uniform(3.0, 12.0)),
-                    rng=rng, cfg=cfg,
-                )
+            if seg.left_boundary_feature_ids:
+                feat = map_features.get(seg.left_boundary_feature_ids[0])
+                if feat is not None and feat.polyline_xy.shape[0] >= 2:
+                    crosswalks = vary_crosswalk(
+                        feat.polyline_xy[0], feat.polyline_xy[-1],
+                        road_width_m=float(rng.uniform(3.0, 12.0)),
+                        rng=rng, cfg=cfg,
+                    )
 
         # Module 8: vehicle and impact markings
         vehicle_elems: list[tuple[SceneElement, ElementClass]] = []
@@ -249,6 +251,7 @@ class SyntheticSceneGenerator:
         M_fwd = DiagramNormalizer.build_forward_transform(centroid, pca_angle, scale)
         gt = self._extract_ground_truth(
             segments=segments,
+            map_features=map_features,
             all_elems=all_elems,
             dropped_ids=dropped_ids,
             lane_id_to_elem_ids=lane_id_to_elem_ids,
@@ -268,6 +271,7 @@ class SyntheticSceneGenerator:
     def _segments_to_elements(
         self,
         segments: list[LaneSegmentData],
+        map_features: dict[str, MapFeatureData],
         rng: np.random.Generator,
     ) -> tuple[
         list[tuple[SceneElement, ElementClass]],  # lane_markings
@@ -278,77 +282,67 @@ class SyntheticSceneGenerator:
         dict[str, list[str]],                     # lane_id → [left_elem_id, right_elem_id]
     ]:
         """
-        Convert AV2/WOMD LaneSegmentData to SceneElement lists.
-        Option A (§1.4): one element per boundary polyline, same granularity as FARO operators.
-        Boundaries are categorised as: ROAD_EDGE, LANE_MARKING_SOLID, LANE_MARKING_DASHED,
-        or SHOULDER_LINE based on mark type and neighbor heuristic.
+        Convert MapFeatureData dict to SceneElement lists (one element per full feature).
+        Lane boundary classification uses the neighbor heuristic from LaneSegmentData.
         """
         lane_markings: list[tuple[SceneElement, ElementClass]] = []
         stop_lines: list[tuple[SceneElement, ElementClass]] = []
         crosswalks: list[tuple[SceneElement, ElementClass]] = []
         shoulders: list[tuple[SceneElement, ElementClass]] = []
         road_edges: list[tuple[SceneElement, ElementClass]] = []
-        lane_id_to_elem_ids: dict[str, list[str]] = {}
 
-        seen_left: dict[str, str] = {}   # canonical boundary key → elem_id (dedup shared boundaries)
-        seen_right: dict[str, str] = {}
-
+        # Build a neighbor-awareness map: feature_id → whether any lane using it has no neighbor
+        # (used to promote outermost lane markings to SHOULDER_LINE)
+        feat_has_no_neighbor: dict[str, bool] = {}
         for seg in segments:
-            left_id_existing = seen_left.get(f"{seg.lane_id}_L")
-            right_id_existing = seen_right.get(f"{seg.lane_id}_R")
+            for feat_ids, has_neighbor in [
+                (seg.left_boundary_feature_ids, bool(seg.left_neighbor_ids)),
+                (seg.right_boundary_feature_ids, bool(seg.right_neighbor_ids)),
+            ]:
+                for feat_id in feat_ids:
+                    if feat_id not in feat_has_no_neighbor:
+                        feat_has_no_neighbor[feat_id] = False
+                    if not has_neighbor:
+                        feat_has_no_neighbor[feat_id] = True
 
-            # --- Left boundary ---
-            if left_id_existing:
-                left_elem_id = left_id_existing
+        # Create one element per feature
+        feat_to_elem_id: dict[str, str] = {}
+        for feat in map_features.values():
+            pts = feat.polyline_xy
+            if pts.shape[0] < 2:
+                continue
+
+            if feat.is_road_edge:
+                cls = ElementClass.ROAD_EDGE
+            elif feat_has_no_neighbor.get(feat.feature_id, False):
+                cls = ElementClass.SHOULDER_LINE
             else:
-                left_cls = self._classify_boundary(seg, side="left")
-                pts = seg.left_boundary_xy
-                if pts.shape[0] >= 2:
-                    is_dashed = seg.left_womd_type in {
-                        WOMDRoadLineType.TYPE_BROKEN_SINGLE_WHITE,
-                        WOMDRoadLineType.TYPE_BROKEN_SINGLE_YELLOW,
-                    }
-                    color = "yellow" if "YELLOW" in seg.left_womd_type.value else "white"
-                    if left_cls == ElementClass.ROAD_EDGE:
-                        color = "black"
-                    layer = "ROADWAY" if left_cls in _ROADWAY_CLASSES else "LANE_MARKINGS"
-                    elem = _make_element(
-                        pts, left_cls,
-                        is_dashed=is_dashed, layer=layer, color=color,
-                        faro_item_name=f"av2_{seg.lane_id}_L",
-                    )
-                    left_elem_id = elem.id
-                    _assign(left_cls, elem, lane_markings, stop_lines, shoulders, road_edges)
-                    seen_left[f"{seg.lane_id}_L"] = left_elem_id
-                else:
-                    left_elem_id = ""
+                cls = _mark_type_to_class(feat.womd_type)
 
-            # --- Right boundary ---
-            if right_id_existing:
-                right_elem_id = right_id_existing
-            else:
-                right_cls = self._classify_boundary(seg, side="right")
-                pts = seg.right_boundary_xy
-                if pts.shape[0] >= 2:
-                    is_dashed = seg.right_womd_type in {
-                        WOMDRoadLineType.TYPE_BROKEN_SINGLE_WHITE,
-                        WOMDRoadLineType.TYPE_BROKEN_SINGLE_YELLOW,
-                    }
-                    color = "yellow" if "YELLOW" in seg.right_womd_type.value else "white"
-                    if right_cls == ElementClass.ROAD_EDGE:
-                        color = "black"
-                    layer = "ROADWAY" if right_cls in _ROADWAY_CLASSES else "LANE_MARKINGS"
-                    elem = _make_element(
-                        pts, right_cls,
-                        is_dashed=is_dashed, layer=layer, color=color,
-                        faro_item_name=f"av2_{seg.lane_id}_R",
-                    )
-                    right_elem_id = elem.id
-                    _assign(right_cls, elem, lane_markings, stop_lines, shoulders, road_edges)
-                    seen_right[f"{seg.lane_id}_R"] = right_elem_id
-                else:
-                    right_elem_id = ""
+            is_dashed = feat.womd_type in {
+                WOMDRoadLineType.TYPE_BROKEN_SINGLE_WHITE,
+                WOMDRoadLineType.TYPE_BROKEN_SINGLE_YELLOW,
+            }
+            color = "yellow" if "YELLOW" in feat.womd_type.value else "white"
+            if cls in (ElementClass.ROAD_EDGE, ElementClass.SHOULDER_LINE):
+                color = "black"
+            layer = "ROADWAY" if cls in _ROADWAY_CLASSES else "LANE_MARKINGS"
 
+            elem = _make_element(
+                pts, cls,
+                is_dashed=is_dashed, layer=layer, color=color,
+                faro_item_name=feat.feature_id,
+            )
+            feat_to_elem_id[feat.feature_id] = elem.id
+            _assign(cls, elem, lane_markings, stop_lines, shoulders, road_edges)
+
+        # Build lane_id → [left_elem_id, right_elem_id] using the first feature id on each side
+        lane_id_to_elem_ids: dict[str, list[str]] = {}
+        for seg in segments:
+            left_feat_id = seg.left_boundary_feature_ids[0] if seg.left_boundary_feature_ids else ""
+            right_feat_id = seg.right_boundary_feature_ids[0] if seg.right_boundary_feature_ids else ""
+            left_elem_id = feat_to_elem_id.get(left_feat_id, "")
+            right_elem_id = feat_to_elem_id.get(right_feat_id, "")
             lane_id_to_elem_ids[seg.lane_id] = [left_elem_id, right_elem_id]
 
         return lane_markings, stop_lines, crosswalks, shoulders, road_edges, lane_id_to_elem_ids
@@ -356,20 +350,15 @@ class SyntheticSceneGenerator:
     @staticmethod
     def _classify_boundary(seg: LaneSegmentData, side: str) -> ElementClass:
         """Classify one lane boundary as ROAD_EDGE, LANE_MARKING_SOLID, LANE_MARKING_DASHED, or SHOULDER_LINE."""
-        womd_type = seg.left_womd_type if side == "left" else seg.right_womd_type
-
-        # Outermost boundary heuristic: if this side has no neighbor → road edge or shoulder
-        has_neighbor = seg.left_neighbor_id is not None if side == "left" else seg.right_neighbor_id is not None
+        has_neighbor = bool(seg.left_neighbor_ids) if side == "left" else bool(seg.right_neighbor_ids)
         if not has_neighbor:
-            if womd_type == WOMDRoadLineType.TYPE_UNKNOWN:
-                return ElementClass.ROAD_EDGE
-            return ElementClass.SHOULDER_LINE
-
-        return _mark_type_to_class(womd_type)
+            return ElementClass.ROAD_EDGE
+        return ElementClass.ROAD_EDGE  # conservative fallback; callers should use feat.womd_type directly
 
     def _extract_ground_truth(
         self,
         segments: list[LaneSegmentData],
+        map_features: dict[str, MapFeatureData],
         all_elems: list[tuple[SceneElement, ElementClass]],
         dropped_ids: set[str],
         lane_id_to_elem_ids: dict[str, list[str]],
@@ -380,6 +369,17 @@ class SyntheticSceneGenerator:
         inv_transform: InverseTransform,
     ) -> SyntheticGroundTruth:
         from synthetic.normalization import _apply_2d, _pts_to_np
+
+        # Build feature_id → elem_id map from lane_id_to_elem_ids + segment feature refs
+        feat_to_elem: dict[str, str] = {}
+        for seg in segments:
+            ids = lane_id_to_elem_ids.get(seg.lane_id, ["", ""])
+            left_feat_id = seg.left_boundary_feature_ids[0] if seg.left_boundary_feature_ids else None
+            right_feat_id = seg.right_boundary_feature_ids[0] if seg.right_boundary_feature_ids else None
+            if left_feat_id and ids[0]:
+                feat_to_elem[left_feat_id] = ids[0]
+            if right_feat_id and len(ids) > 1 and ids[1]:
+                feat_to_elem[right_feat_id] = ids[1]
 
         # element_classes: all elements in the scene
         element_classes: dict[str, str] = {}
@@ -408,14 +408,16 @@ class SyntheticSceneGenerator:
         for seg in segments:
             if seg.lane_id not in surviving_lane_ids:
                 continue
+            left_neighbor = seg.left_neighbor_ids[0] if seg.left_neighbor_ids else None
+            right_neighbor = seg.right_neighbor_ids[0] if seg.right_neighbor_ids else None
             topology[seg.lane_id] = LaneTopology(
                 entry_lane_ids=[p for p in seg.predecessor_ids if p in surviving_lane_ids],
                 exit_lane_ids=[s for s in seg.successor_ids if s in surviving_lane_ids],
-                left_neighbor_id=seg.left_neighbor_id if seg.left_neighbor_id in surviving_lane_ids else None,
-                right_neighbor_id=seg.right_neighbor_id if seg.right_neighbor_id in surviving_lane_ids else None,
+                left_neighbor_id=left_neighbor if left_neighbor in surviving_lane_ids else None,
+                right_neighbor_id=right_neighbor if right_neighbor in surviving_lane_ids else None,
             )
 
-        # boundary_assignments: left/right element per lane
+        # boundary_assignments: left/right element per lane, mark types from MapFeatureData
         boundary_assignments: dict[str, BoundaryAssignment] = {}
         for seg in segments:
             if seg.lane_id not in surviving_lane_ids:
@@ -423,21 +425,27 @@ class SyntheticSceneGenerator:
             ids = lane_id_to_elem_ids.get(seg.lane_id, ["", ""])
             left_id = ids[0] if ids[0] not in dropped_ids else None
             right_id = ids[1] if len(ids) > 1 and ids[1] not in dropped_ids else None
+
+            left_feat_id = seg.left_boundary_feature_ids[0] if seg.left_boundary_feature_ids else None
+            right_feat_id = seg.right_boundary_feature_ids[0] if seg.right_boundary_feature_ids else None
+            left_feat = map_features.get(left_feat_id) if left_feat_id else None
+            right_feat = map_features.get(right_feat_id) if right_feat_id else None
+            left_mark = left_feat.womd_type if left_feat else WOMDRoadLineType.TYPE_UNKNOWN
+            right_mark = right_feat.womd_type if right_feat else WOMDRoadLineType.TYPE_UNKNOWN
+
             boundary_assignments[seg.lane_id] = BoundaryAssignment(
                 left_boundary_element_id=left_id or None,
                 right_boundary_element_id=right_id or None,
-                left_mark_type=seg.left_womd_type,
-                right_mark_type=seg.right_womd_type,
+                left_mark_type=left_mark,
+                right_mark_type=right_mark,
             )
 
-        # marking_types: per boundary element
+        # marking_types: per feature element, sourced directly from MapFeatureData
         marking_types: dict[str, str] = {}
-        for seg in segments:
-            ids = lane_id_to_elem_ids.get(seg.lane_id, ["", ""])
-            if ids[0] and ids[0] not in dropped_ids:
-                marking_types[ids[0]] = seg.left_womd_type.value
-            if len(ids) > 1 and ids[1] and ids[1] not in dropped_ids:
-                marking_types[ids[1]] = seg.right_womd_type.value
+        for feat in map_features.values():
+            elem_id = feat_to_elem.get(feat.feature_id, "")
+            if elem_id and elem_id not in dropped_ids:
+                marking_types[elem_id] = feat.womd_type.value
 
         # endpoint_adjacency: group elements that share endpoints (within 0.05 normalized units)
         endpoint_adjacency = self._build_endpoint_adjacency(all_elems, dropped_ids, M_fwd)
@@ -510,5 +518,3 @@ def _assign(
         stop_lines.append((elem, cls))
     else:
         lane_markings.append((elem, cls))
-
-

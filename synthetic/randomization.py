@@ -512,8 +512,6 @@ def _apply_layout_to_segments(
         result.append(dataclasses.replace(
             seg,
             centerline_xy=_xfm(seg.centerline_xy),
-            left_boundary_xy=_xfm(seg.left_boundary_xy),
-            right_boundary_xy=_xfm(seg.right_boundary_xy),
         ))
     return result
 

@@ -13,9 +13,9 @@ def test_all_probability_fields_in_range():
 
 def test_for_stage_returns_correct_config():
     cc = CurriculumConfig()
-    assert cc.for_stage(CurriculumStage.A) is cc.stage_a
-    assert cc.for_stage(CurriculumStage.B) is cc.stage_b
-    assert cc.for_stage(CurriculumStage.C) is cc.stage_c
+    assert cc.for_stage(CurriculumStage.NoRandomization) is cc.stage_no_randomization
+    assert cc.for_stage(CurriculumStage.PartialRandomization) is cc.stage_b
+    assert cc.for_stage(CurriculumStage.FullRandomization) is cc.stage_c
 
 
 _MODULE_ENABLE_FIELDS = {
@@ -30,13 +30,13 @@ _MODULE_ENABLE_FIELDS = {
 
 
 def test_stage_a_is_all_zeros():
-    cfg = CurriculumConfig().for_stage(CurriculumStage.A)
+    cfg = CurriculumConfig().for_stage(CurriculumStage.NoRandomization)
     for fname in _MODULE_ENABLE_FIELDS:
         assert getattr(cfg, fname) == 0.0, f"Stage A: {fname} should be 0"
 
 
 def test_stage_c_has_all_modules_active():
-    cfg = CurriculumConfig().for_stage(CurriculumStage.C)
+    cfg = CurriculumConfig().for_stage(CurriculumStage.FullRandomization)
     active = [fname for fname in cfg.__dataclass_fields__ if fname.startswith("p_") and getattr(cfg, fname) > 0.0]
     assert len(active) >= 9, "Stage C should activate all 9 module probability knobs"
 

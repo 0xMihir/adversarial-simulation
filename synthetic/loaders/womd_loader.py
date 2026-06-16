@@ -15,6 +15,7 @@ Directory layout expected:
 """
 from __future__ import annotations
 
+import json
 import struct
 from functools import lru_cache
 from pathlib import Path
@@ -23,7 +24,7 @@ from typing import Iterator
 import numpy as np
 
 from synthetic.schema import WOMDRoadLineType
-from .base import LaneSegmentData
+from .base import LaneSegmentData, MapFeatureData
 
 WOMD_ROAD_LINE_TO_WOMD: dict[int, WOMDRoadLineType] = {
     0: WOMDRoadLineType.TYPE_UNKNOWN,
@@ -61,17 +62,11 @@ def _masked_crc32c(data: bytes) -> int:
     return (((crc >> 15) | (crc << 17)) + 0xa282ead8) & 0xFFFFFFFF
 
 
-def _iter_tfrecords(path: Path) -> Iterator[bytes]:
-    """
-    Yield raw serialized protobuf bytes from a TFRecord file.
-    TFRecord format per record:
-        uint64  length
-        uint32  masked_crc32c(length as little-endian uint64)
-        byte[length]  data
-        uint32  masked_crc32c(data)
-    """
+def _iter_tfrecords_with_offsets(path: Path) -> Iterator[tuple[int, bytes]]:
+    """Yield (byte_offset_of_record_start, data) for each record in a TFRecord file."""
     with open(path, "rb") as f:
         while True:
+            offset = f.tell()
             header = f.read(12)
             if not header:
                 break
@@ -82,7 +77,21 @@ def _iter_tfrecords(path: Path) -> Iterator[bytes]:
             if len(data) < length:
                 raise ValueError(f"Truncated TFRecord data in {path}")
             f.read(4)  # skip data CRC
-            yield data
+            yield offset, data
+
+
+def _read_tfrecord_at(path: Path, offset: int) -> bytes:
+    """Read a single TFRecord at a known byte offset."""
+    with open(path, "rb") as f:
+        f.seek(offset)
+        header = f.read(12)
+        if len(header) < 12:
+            raise ValueError(f"Truncated TFRecord header in {path} at offset {offset}")
+        length = struct.unpack("<Q", header[:8])[0]
+        data = f.read(length)
+        if len(data) < length:
+            raise ValueError(f"Truncated TFRecord data in {path} at offset {offset}")
+    return data
 
 
 def _polyline_to_xy(points) -> np.ndarray:
@@ -92,6 +101,17 @@ def _polyline_to_xy(points) -> np.ndarray:
     return np.array([[p.x, p.y] for p in points], dtype=np.float64)
 
 
+def _unique_ordered(ids: list[str]) -> list[str]:
+    """Deduplicate a list while preserving insertion order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for x in ids:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
 class WOMDScenarioLoader:
     """
     Loads WOMD map data from TFRecord files without TensorFlow.
@@ -99,16 +119,39 @@ class WOMDScenarioLoader:
 
     Usage:
         loader = WOMDScenarioLoader(Path("data/womd/training/"))
-        segments = loader.load_scenario("scenario_id_string")
+        segments, map_features = loader.load_scenario("scenario_id_string")
     """
 
     def __init__(self, womd_root: Path, max_cache_size: int = 128) -> None:
         self.womd_root = Path(womd_root)
-        self._scenario_index: dict[str, Path] | None = None
+        self._scenario_index: dict[str, tuple[Path, int]] | None = None
         self._load_cached = lru_cache(maxsize=max_cache_size)(self._load_scenario_inner)
 
-    def _build_index(self) -> dict[str, Path]:
-        """Scan all .tfrecord files and map scenario_id → file path."""
+    @property
+    def _index_cache_path(self) -> Path:
+        root = self.womd_root if self.womd_root.is_dir() else self.womd_root.parent
+        return root / ".womd_scenario_index.json"
+
+    def _index_is_stale(self, cache_path: Path) -> bool:
+        """Return True if any tfrecord is newer than the cache file."""
+        cache_mtime = cache_path.stat().st_mtime
+        if self.womd_root.is_file():
+            return self.womd_root.stat().st_mtime > cache_mtime
+        return any(
+            tfr.stat().st_mtime > cache_mtime
+            for tfr in self.womd_root.rglob("*.tfrecord-*")
+        )
+
+    def _load_index_from_cache(self, cache_path: Path) -> dict[str, tuple[Path, int]]:
+        raw = json.loads(cache_path.read_text())
+        return {sid: (Path(path), offset) for sid, (path, offset) in raw.items()}
+
+    def _save_index_to_cache(self, index: dict[str, tuple[Path, int]], cache_path: Path) -> None:
+        serializable = {sid: [str(path), offset] for sid, (path, offset) in index.items()}
+        cache_path.write_text(json.dumps(serializable))
+
+    def _build_index(self) -> dict[str, tuple[Path, int]]:
+        """Scan all .tfrecord files and map scenario_id → (file path, byte offset)."""
         try:
             from synthetic.loaders.proto import scenario_pb2
         except ImportError:
@@ -116,12 +159,24 @@ class WOMDScenarioLoader:
                 "Proto stubs not compiled. Run: bash scripts/compile_protos.sh"
             )
 
-        index: dict[str, Path] = {}
-        for tfr in sorted(self.womd_root.rglob("*.tfrecord-*")):
-            for raw in _iter_tfrecords(tfr):
+        cache_path = self._index_cache_path
+        if cache_path.exists() and not self._index_is_stale(cache_path):
+            return self._load_index_from_cache(cache_path)
+
+        index: dict[str, tuple[Path, int]] = {}
+        if self.womd_root.is_file() and self.womd_root.suffix.startswith(".tfrecord"):
+            for offset, raw in _iter_tfrecords_with_offsets(self.womd_root):
                 sc = scenario_pb2.Scenario()
                 sc.ParseFromString(raw)
-                index[sc.scenario_id] = tfr
+                index[sc.scenario_id] = (self.womd_root, offset)
+        else:
+            for tfr in sorted(self.womd_root.rglob("*.tfrecord-*")):
+                for offset, raw in _iter_tfrecords_with_offsets(tfr):
+                    sc = scenario_pb2.Scenario()
+                    sc.ParseFromString(raw)
+                    index[sc.scenario_id] = (tfr, offset)
+
+        self._save_index_to_cache(index, cache_path)
         return index
 
     def list_scenario_ids(self) -> list[str]:
@@ -129,10 +184,10 @@ class WOMDScenarioLoader:
             self._scenario_index = self._build_index()
         return list(self._scenario_index.keys())
 
-    def load_scenario(self, scenario_id: str) -> list[LaneSegmentData]:
+    def load_scenario(self, scenario_id: str) -> tuple[list[LaneSegmentData], dict[str, MapFeatureData]]:
         return self._load_cached(scenario_id)
 
-    def _load_scenario_inner(self, scenario_id: str) -> list[LaneSegmentData]:
+    def _load_scenario_inner(self, scenario_id: str) -> tuple[list[LaneSegmentData], dict[str, MapFeatureData]]:
         try:
             from synthetic.loaders.proto import scenario_pb2
         except ImportError:
@@ -143,102 +198,71 @@ class WOMDScenarioLoader:
         if self._scenario_index is None:
             self._scenario_index = self._build_index()
 
-        tfr_path = self._scenario_index.get(scenario_id)
-        if tfr_path is None:
+        entry = self._scenario_index.get(scenario_id)
+        if entry is None:
             raise KeyError(f"Scenario {scenario_id!r} not found in {self.womd_root}")
 
-        # Find the matching Scenario in the TFRecord
-        scenario = None
-        for raw in _iter_tfrecords(tfr_path):
-            sc = scenario_pb2.Scenario()
-            sc.ParseFromString(raw)
-            if sc.scenario_id == scenario_id:
-                scenario = sc
-                break
-        if scenario is None:
-            raise RuntimeError(f"Scenario {scenario_id!r} not found in {tfr_path}")
+        tfr_path, offset = entry
+        scenario = scenario_pb2.Scenario()
+        scenario.ParseFromString(_read_tfrecord_at(tfr_path, offset))
 
-        # Build feature_id → MapFeature lookup
-        feature_map: dict[int, object] = {mf.id: mf for mf in scenario.map_features}
+        # Build full-polyline MapFeatureData for every RoadLine and RoadEdge
+        map_features: dict[str, MapFeatureData] = {}
+        for mf in scenario.map_features:
+            if mf.HasField("road_line"):
+                pts = _polyline_to_xy(mf.road_line.polyline)
+                if pts.shape[0] >= 2:
+                    feat_id = str(mf.id)
+                    map_features[feat_id] = MapFeatureData(
+                        feature_id=feat_id,
+                        polyline_xy=pts,
+                        womd_type=_map_road_line_type(mf.road_line.type),
+                        is_road_edge=False,
+                    )
+            elif mf.HasField("road_edge"):
+                pts = _polyline_to_xy(mf.road_edge.polyline)
+                if pts.shape[0] >= 2:
+                    feat_id = str(mf.id)
+                    map_features[feat_id] = MapFeatureData(
+                        feature_id=feat_id,
+                        polyline_xy=pts,
+                        womd_type=WOMDRoadLineType.TYPE_UNKNOWN,
+                        is_road_edge=True,
+                    )
 
-        result: list[LaneSegmentData] = []
+        segments: list[LaneSegmentData] = []
         for mf in scenario.map_features:
             if not mf.HasField("lane"):
                 continue
             lane = mf.lane
 
-            # Skip intersection-interior lanes (§0.2: surface lanes only in v1)
             lane_type_str = WOMD_LANE_TYPE_TO_STR.get(lane.type, "undefined")
-            if lane_type_str not in {"surface", "bike"}:
-                continue
 
             centerline_xy = _polyline_to_xy(lane.polyline)
 
-            # Resolve left boundary: stitch all left_boundary BoundarySegments
-            left_xy = self._resolve_boundaries(lane.left_boundaries, feature_map)
-            right_xy = self._resolve_boundaries(lane.right_boundaries, feature_map)
+            # BoundarySegment.lane_start_index and lane_end_index index into this lane's
+            # centerline polyline (not into the boundary feature's polyline) — we do not
+            # use them. We only reference boundary_feature_id to link to the MapFeature pool.
+            left_boundary_feature_ids = _unique_ordered(
+                [str(bs.boundary_feature_id) for bs in lane.left_boundaries]
+            )
+            right_boundary_feature_ids = _unique_ordered(
+                [str(bs.boundary_feature_id) for bs in lane.right_boundaries]
+            )
 
-            # Infer mark types from first boundary segment type
-            left_womd = self._boundary_segment_to_womd(lane.left_boundaries, feature_map)
-            right_womd = self._boundary_segment_to_womd(lane.right_boundaries, feature_map)
-            left_raw = left_womd.value
-            right_raw = right_womd.value
+            left_neighbor_ids = [str(n.feature_id) for n in lane.left_neighbors]
+            right_neighbor_ids = [str(n.feature_id) for n in lane.right_neighbors]
 
-            result.append(LaneSegmentData(
+            segments.append(LaneSegmentData(
                 lane_id=str(mf.id),
                 centerline_xy=centerline_xy,
-                left_boundary_xy=left_xy,
-                right_boundary_xy=right_xy,
+                left_boundary_feature_ids=left_boundary_feature_ids,
+                right_boundary_feature_ids=right_boundary_feature_ids,
                 successor_ids=[str(i) for i in lane.exit_lanes],
                 predecessor_ids=[str(i) for i in lane.entry_lanes],
-                left_neighbor_id=str(lane.left_neighbors[0].feature_id) if lane.left_neighbors else None,
-                right_neighbor_id=str(lane.right_neighbors[0].feature_id) if lane.right_neighbors else None,
+                left_neighbor_ids=left_neighbor_ids,
+                right_neighbor_ids=right_neighbor_ids,
                 lane_type=lane_type_str,
-                left_mark_type=left_raw,
-                right_mark_type=right_raw,
                 is_intersection=False,
-                left_womd_type=left_womd,
-                right_womd_type=right_womd,
             ))
-        return result
-
-    @staticmethod
-    def _resolve_boundaries(boundary_segments, feature_map: dict[int, object]) -> np.ndarray:
-        """
-        Resolve a lane's repeated BoundarySegment list to a stitched (N, 2) polyline.
-        Each BoundarySegment references a RoadLine or RoadEdge MapFeature by ID.
-        For v1 we concatenate the full referenced feature polyline (no index clipping).
-        """
-        if not boundary_segments:
-            return np.zeros((0, 2), dtype=np.float64)
-
-        parts: list[np.ndarray] = []
-        for bs in boundary_segments:
-            ref = feature_map.get(bs.boundary_feature_id)
-            if ref is None:
-                continue
-            if ref.HasField("road_line"):
-                pts = _polyline_to_xy(ref.road_line.polyline)
-            elif ref.HasField("road_edge"):
-                pts = _polyline_to_xy(ref.road_edge.polyline)
-            else:
-                continue
-            if pts.shape[0] > 0:
-                parts.append(pts)
-
-        if not parts:
-            return np.zeros((0, 2), dtype=np.float64)
-        return np.concatenate(parts, axis=0)
-
-    @staticmethod
-    def _boundary_segment_to_womd(boundary_segments, feature_map: dict[int, object]) -> WOMDRoadLineType:
-        """Infer WOMD type from the first resolvable boundary segment."""
-        for bs in boundary_segments:
-            ref = feature_map.get(bs.boundary_feature_id)
-            if ref is None:
-                continue
-            if ref.HasField("road_line"):
-                return _map_road_line_type(ref.road_line.type)
-            if ref.HasField("road_edge"):
-                return WOMDRoadLineType.TYPE_SOLID_SINGLE_WHITE  # treat road edge as solid white
-        return WOMDRoadLineType.TYPE_UNKNOWN
+        return segments, map_features

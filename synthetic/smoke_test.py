@@ -20,35 +20,46 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from schema.scene import ParsedScene
 from synthetic.config import CurriculumStage
 from synthetic.generator import SyntheticSceneGenerator
-from synthetic.loaders.base import LaneSegmentData
+from synthetic.loaders.base import LaneSegmentData, MapFeatureData
 from synthetic.schema import SyntheticGroundTruth, WOMDRoadLineType
 
 
-def _make_segments(n_lanes: int = 4, length: float = 80.0) -> list[LaneSegmentData]:
+def _make_segments(n_lanes: int = 4, length: float = 80.0) -> tuple[list[LaneSegmentData], dict[str, MapFeatureData]]:
     segs = []
+    map_features: dict[str, MapFeatureData] = {}
     for i in range(n_lanes):
         y_left = float(i * 4 + 2)
         y_right = float(i * 4)
         cl = np.array([[x, (y_left + y_right) / 2] for x in np.linspace(0, length, 30)], dtype=np.float64)
         left = np.array([[x, y_left] for x in np.linspace(0, length, 15)], dtype=np.float64)
         right = np.array([[x, y_right] for x in np.linspace(0, length, 15)], dtype=np.float64)
+        left_feat_id = f"feat_L{i}"
+        right_feat_id = f"feat_R{i}"
         segs.append(LaneSegmentData(
             lane_id=str(i),
             centerline_xy=cl,
-            left_boundary_xy=left,
-            right_boundary_xy=right,
+            left_boundary_feature_ids=[left_feat_id],
+            right_boundary_feature_ids=[right_feat_id],
             successor_ids=[str(i + 1)] if i < n_lanes - 1 else [],
             predecessor_ids=[str(i - 1)] if i > 0 else [],
-            left_neighbor_id=str(i - 1) if i > 0 else None,
-            right_neighbor_id=str(i + 1) if i < n_lanes - 1 else None,
+            left_neighbor_ids=[str(i - 1)] if i > 0 else [],
+            right_neighbor_ids=[str(i + 1)] if i < n_lanes - 1 else [],
             lane_type="surface",
-            left_mark_type="SOLID_WHITE",
-            right_mark_type="DASHED_WHITE",
             is_intersection=False,
-            left_womd_type=WOMDRoadLineType.TYPE_SOLID_SINGLE_WHITE,
-            right_womd_type=WOMDRoadLineType.TYPE_BROKEN_SINGLE_WHITE,
         ))
-    return segs
+        map_features[left_feat_id] = MapFeatureData(
+            feature_id=left_feat_id,
+            polyline_xy=left,
+            womd_type=WOMDRoadLineType.TYPE_SOLID_SINGLE_WHITE,
+            is_road_edge=i == 0,
+        )
+        map_features[right_feat_id] = MapFeatureData(
+            feature_id=right_feat_id,
+            polyline_xy=right,
+            womd_type=WOMDRoadLineType.TYPE_BROKEN_SINGLE_WHITE,
+            is_road_edge=i == n_lanes - 1,
+        )
+    return segs, map_features
 
 
 class MockLoader:
@@ -59,7 +70,7 @@ class MockLoader:
     def list_scenario_ids(self) -> list[str]:
         return self._ids
 
-    def load_scenario(self, scenario_id: str) -> list[LaneSegmentData]:
+    def load_scenario(self, scenario_id: str) -> tuple[list[LaneSegmentData], dict[str, MapFeatureData]]:
         seed = abs(hash(scenario_id)) % 100
         n_lanes = 3 + seed % 3
         return _make_segments(n_lanes=n_lanes)

@@ -33,8 +33,8 @@ class SyntheticCISSDataset(Dataset):
 
     Args:
         loader: AV2ScenarioLoader, WOMDScenarioLoader, or any ScenarioLoader
-        stage: curriculum stage (A, B, or C)
-        curriculum_cfg: optional custom CurriculumConfig; defaults to standard A/B/C
+        stage: curriculum stage (No randomization, partial, or full)
+        curriculum_cfg: optional custom CurriculumConfig; defaults to standard config if None
         samples_per_scenario: number of independent crops per scenario (different index seeds)
         apply_pca: passed to SyntheticSceneGenerator
         base_seed: base randomization seed

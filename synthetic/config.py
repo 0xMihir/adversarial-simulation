@@ -3,9 +3,9 @@ from enum import Enum
 
 
 class CurriculumStage(str, Enum):
-    A = "A"  # 0-25%: no randomization — clean source maps with FARO schema only
-    B = "B"  # 25-60%: drop_primitives, resample_vertices, apply_faro_styling
-    C = "C"  # 60-100%: all 9 modules active
+    NoRandomization = "A"  # 0-25%: no randomization — clean source maps with FARO schema only
+    PartialRandomization = "B"  # 25-60%: drop_primitives, resample_vertices, apply_faro_styling
+    FullRandomization = "C"  # 60-100%: all 9 modules active
 
 
 @dataclass
@@ -108,13 +108,13 @@ def _stage_c_config() -> "RandomizationConfig":
 
 @dataclass
 class CurriculumConfig:
-    stage_a: RandomizationConfig = field(default_factory=RandomizationConfig)
-    stage_b: RandomizationConfig = field(default_factory=_stage_b_config)
-    stage_c: RandomizationConfig = field(default_factory=_stage_c_config)
+    stage_no_randomization: RandomizationConfig = field(default_factory=RandomizationConfig)
+    stage_partial_randomization: RandomizationConfig = field(default_factory=_stage_b_config)
+    stage_full_randomization: RandomizationConfig = field(default_factory=_stage_c_config)
 
     def for_stage(self, stage: CurriculumStage) -> RandomizationConfig:
         return {
-            CurriculumStage.A: self.stage_a,
-            CurriculumStage.B: self.stage_b,
-            CurriculumStage.C: self.stage_c,
+            CurriculumStage.NoRandomization: self.stage_no_randomization,
+            CurriculumStage.PartialRandomization: self.stage_partial_randomization,
+            CurriculumStage.FullRandomization: self.stage_full_randomization,
         }[stage]

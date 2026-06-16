@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 
 av2_data_root = Path("/depot/ziran/data/shared/av2/test")
-# womd_data_root = Path("/depot/ziran/data/shared/waymo/scenario/validation/")
-womd_data_root = Path("test_tfrecord")
+womd_data_root = Path("/depot/ziran/data/shared/waymo/scenario/validation/")
+# womd_data_root = Path("test_tfrecord")
 
 # av2 = av2_loader.AV2ScenarioLoader(av2_data_root)
 womd = womd_loader.WOMDScenarioLoader(womd_data_root)
@@ -25,12 +25,14 @@ womd = womd_loader.WOMDScenarioLoader(womd_data_root)
 def test_womd_loader():
     scenario_ids = womd.list_scenario_ids()
     assert len(scenario_ids) > 0, "WOMD loader should find some scenarios"
-    lane_segments = womd.load_scenario(scenario_ids[0])
+    lane_segments, map_features = womd.load_scenario(scenario_ids[0])
     assert len(lane_segments) > 0, "WOMD loader should produce some lane segments"
     for seg in lane_segments:
         assert seg.centerline_xy.shape[1] == 2, "Centerline should be 2D"
-        assert seg.left_boundary_xy.shape[1] == 2, "Left boundary should be 2D"
-        assert seg.right_boundary_xy.shape[1] == 2, "Right boundary should be 2D"
+        assert isinstance(seg.left_boundary_feature_ids, list)
+        assert isinstance(seg.right_boundary_feature_ids, list)
+        for feat_id in seg.left_boundary_feature_ids + seg.right_boundary_feature_ids:
+            assert feat_id in map_features, f"Feature {feat_id!r} missing from map_features"
         
 # def test_synthetic_dataset():
 #     dataset = SyntheticCISSDataset(loader=av2, stage=CurriculumStage.A, samples_per_scenario=2, max_scenarios=5)

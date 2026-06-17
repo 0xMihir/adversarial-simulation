@@ -21,7 +21,19 @@
       "Read(//home/patil139/scratch/adversarial-simulation/notebooks/**)",
       "Read(//scratch/gilbreth/patil139/adversarial-simulation/notebooks/**)",
       "Read(//home/patil139/scratch/adversarial-simulation/synthetic/**)",
-      "Read(//scratch/gilbreth/patil139/adversarial-simulation/synthetic/**)"
+      "Read(//scratch/gilbreth/patil139/adversarial-simulation/synthetic/**)",
+      "Bash(curl -s \"https://pypi.jetson-ai-lab.io/sbsa/cu130/simple/spconv/\")",
+      "Bash(curl -s \"https://pypi.jetson-ai-lab.io/sbsa/cu130/simple/cumm/\")",
+      "Bash(curl -sL \"https://pypi.jetson-ai-lab.io/sbsa/cu130/simple/spconv/\")",
+      "Bash(curl -sL \"https://pypi.jetson-ai-lab.io/sbsa/cu130/simple/cumm/\")",
+      "Bash(gh api *)",
+      "Bash(CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:__TRACKED_VAR__ CUMM_CUDA_ARCH_LIST=12.1 /home/mpatil/Programming/Projects/adversarial-simulation/.venv/bin/python3 -c 'import spconv; print\\('\\\\''spconv ok:'\\\\'', spconv.__version__\\)')",
+      "Bash(nvidia-smi *)",
+      "Read(//usr/local/cuda-13.0/targets/sbsa-linux/include/**)",
+      "Read(//usr/local/cuda-13.0/targets/sbsa-linux/lib/**)",
+      "Bash(uv --version)",
+      "Bash(PATH=/usr/local/cuda/bin:__TRACKED_VAR__ uv run python3 -c 'import spconv; print\\('\\\\''spconv imported OK'\\\\''\\)')",
+      "Bash(/usr/local/cuda/bin/nvcc -I /usr/local/cuda/include -I /home/mpatil/Programming/Repos/cumm/include -std=c++17 --expt-relaxed-constexpr -E /tmp/chk2.cu)"
     ],
     "additionalDirectories": [
       "/home/patil139/scratch/adversarial-simulation/synthetic/loaders",

@@ -1,0 +1,37 @@
+[project]
+name = "models"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "flash-attn>=2.8.4",
+    "cumm>=0.8.2",
+    "spconv",
+    "pccm>=0.4.16",
+    "ccimport>=0.4.4",
+]
+
+
+[[tool.uv.index]]
+name = "jetson-ai-lab"
+url = "https://pypi.jetson-ai-lab.io/sbsa/cu130"
+explicit = true
+
+
+[tool.uv.sources]
+flash-attn = { index = "jetson-ai-lab" }
+# Editable path installs: git source installs don't include tensorview headers
+# (those only ship in prebuilt wheels or CUMM_DISABLE_JIT=1 builds), and
+# Blackwell (sm_121) isn't supported for precompiled kernels in 0.8.2.
+# Repo layout is documented in CLAUDE.md.
+cumm = { path = "/home/mpatil/Programming/Repos/cumm", editable = true }
+spconv = { path = "/home/mpatil/Programming/Repos/spconv", editable = true }
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["models"]
+
+[tool.setuptools.package-dir]
+"models" = "."

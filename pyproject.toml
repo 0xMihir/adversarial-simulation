@@ -61,8 +61,12 @@ models = { path = "./models", editable = true }
 # cumm/spconv: editable path installs from local repos — git-source builds
 # omit the tensorview headers (needed at JIT time), and Blackwell (sm_121)
 # isn't supported for CUMM_DISABLE_JIT=1 precompiled kernels in 0.8.2.
-cumm = { path = "/home/mpatil/Programming/Repos/cumm", editable = true }
-spconv = { path = "/home/mpatil/Programming/Repos/spconv", editable = true }
+cumm = [
+  { path = "/home/mpatil/Programming/Repos/cumm", editable = true, marker = "platform_machine == 'aarch64'" },
+]
+spconv = [
+  { path = "/home/mpatil/Programming/Repos/spconv", editable = true, marker = "platform_machine == 'aarch64'" },
+]
 
 torch = [
   { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
@@ -72,7 +76,7 @@ torchvision = [
 ]
 
 [tool.uv]
-no-build-isolation-package = ["spconv"]
+no-build-isolation-package = ["spconv", "torch-scatter"]
 override-dependencies = ["cumm>=0.7.11"]
 
 [tool.uv.extra-build-dependencies]
@@ -83,4 +87,4 @@ pythonVersion = "3.12"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-extraPaths = ["."]
+extraPaths = [".", "../../Repos/spconv", "../../Repos/cumm"]

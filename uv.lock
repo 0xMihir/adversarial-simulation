@@ -2,12 +2,17 @@ version = 1
 revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
-    "sys_platform == 'linux' or sys_platform == 'win32'",
-    "sys_platform != 'linux' and sys_platform != 'win32'",
+    "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and sys_platform == 'win32')",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine != 'aarch64' and sys_platform == 'win32')",
+    "platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
+    "platform_machine != 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
 ]
 
 [manifest]
-overrides = [{ name = "cumm", editable = "/home/mpatil/Programming/Repos/cumm" }]
+overrides = [
+    { name = "cumm", marker = "platform_machine != 'aarch64'", specifier = ">=0.7.11" },
+    { name = "cumm", marker = "platform_machine == 'aarch64'", editable = "/home/mpatil/Programming/Repos/cumm" },
+]
 
 [[package]]
 name = "accelerate"
@@ -26,6 +31,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ca/14/787e5498cd062640f0f3d92ef4ae4063174f76f9afd29d13fc52a319daae/accelerate-1.13.0.tar.gz", hash = "sha256:d631b4e0f5b3de4aff2d7e9e6857d164810dfc3237d54d017f075122d057b236", size = 402835, upload-time = "2026-03-04T19:34:12.359Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/46/02ac5e262d4af18054b3e922b2baedbb2a03289ee792162de60a865defc5/accelerate-1.13.0-py3-none-any.whl", hash = "sha256:cf1a3efb96c18f7b152eb0fa7490f3710b19c3f395699358f08decca2b8b62e0", size = 383744, upload-time = "2026-03-04T19:34:10.313Z" },
+]
+
+[[package]]
+name = "addict"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/ef/fd7649da8af11d93979831e8f1f8097e85e82d5bfeabc8c68b39175d8e75/addict-2.4.0.tar.gz", hash = "sha256:b3b2210e0e067a281f5646c8c5db92e99b7231ea8b0eb5f74dbdf9e259d4e494", size = 9186, upload-time = "2020-11-21T16:21:31.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/00/b08f23b7d7e1e14ce01419a467b583edbb93c6cdb8654e54a9cc579cd61f/addict-2.4.0-py3-none-any.whl", hash = "sha256:249bb56bbfd3cdc2a004ea0ff4c2b6ddc84d53bc2194761636eb314d5cfa5dfc", size = 3832, upload-time = "2020-11-21T16:21:29.588Z" },
 ]
 
 [[package]]
@@ -603,13 +617,38 @@ nvtx = [
 [[package]]
 name = "cumm"
 version = "0.8.2"
-source = { editable = "/home/mpatil/Programming/Repos/cumm" }
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine != 'aarch64' and sys_platform == 'win32')",
+    "platform_machine != 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
+]
 dependencies = [
-    { name = "fire" },
-    { name = "numpy" },
-    { name = "pccm" },
-    { name = "pybind11" },
-    { name = "sympy" },
+    { name = "fire", marker = "platform_machine != 'aarch64'" },
+    { name = "numpy", marker = "platform_machine != 'aarch64'" },
+    { name = "pccm", marker = "platform_machine != 'aarch64'" },
+    { name = "pybind11", marker = "platform_machine != 'aarch64'" },
+    { name = "sympy", marker = "platform_machine != 'aarch64'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/68/7688a200ce019b42a115cab772161383d30ea83dbddbcbef88cda8af8e3c/cumm-0.8.2-cp312-cp312-macosx_14_0_universal2.whl", hash = "sha256:db09b7df2fc900d0c1c24ebd5022fe026e86d8f6e135fff31aeb187ae8afa9d4", size = 1390483, upload-time = "2025-05-28T03:11:40.667Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/fa/2394042e25018049b8a8b74b314c2375e528be7b0cab59865c3154d9921e/cumm-0.8.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:dabad0783e1f8a68cae6488c1d78f0584115ccdb909e2ed36c4fee141b650c96", size = 2645849, upload-time = "2025-05-28T03:32:32.517Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/1c/4d4c96640c7e05de8bf732f3f016e07bb98f9e6e07d9972b13f84f724287/cumm-0.8.2-cp312-cp312-win_amd64.whl", hash = "sha256:038a267f54b96f9c137ad58dcff45bc32e61b10adcdc2b68433dfc91af84976d", size = 2111440, upload-time = "2025-05-28T03:12:19.522Z" },
+]
+
+[[package]]
+name = "cumm"
+version = "0.8.2"
+source = { editable = "/home/mpatil/Programming/Repos/cumm" }
+resolution-markers = [
+    "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and sys_platform == 'win32')",
+    "platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "fire", marker = "platform_machine == 'aarch64'" },
+    { name = "numpy", marker = "platform_machine == 'aarch64'" },
+    { name = "pccm", marker = "platform_machine == 'aarch64'" },
+    { name = "pybind11", marker = "platform_machine == 'aarch64'" },
+    { name = "sympy", marker = "platform_machine == 'aarch64'" },
 ]
 
 [package.metadata]
@@ -1656,20 +1695,29 @@ name = "models"
 version = "0.1.0"
 source = { editable = "models" }
 dependencies = [
+    { name = "addict" },
     { name = "ccimport" },
-    { name = "cumm" },
+    { name = "cumm", version = "0.8.2", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'aarch64'" },
+    { name = "cumm", version = "0.8.2", source = { editable = "/home/mpatil/Programming/Repos/cumm" }, marker = "platform_machine == 'aarch64'" },
     { name = "flash-attn" },
+    { name = "ocnn" },
     { name = "pccm" },
     { name = "spconv" },
+    { name = "timm" },
+    { name = "torch-scatter" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "addict", specifier = ">=2.4.0" },
     { name = "ccimport", specifier = ">=0.4.4" },
     { name = "cumm", editable = "/home/mpatil/Programming/Repos/cumm" },
     { name = "flash-attn", specifier = ">=2.8.4", index = "https://pypi.jetson-ai-lab.io/sbsa/cu130" },
+    { name = "ocnn", specifier = ">=2.3.2" },
     { name = "pccm", specifier = ">=0.4.16" },
     { name = "spconv", editable = "/home/mpatil/Programming/Repos/spconv" },
+    { name = "timm", specifier = ">=1.0.27" },
+    { name = "torch-scatter", specifier = ">=2.1.2" },
 ]
 
 [[package]]
@@ -2053,6 +2101,23 @@ source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/f3/d86c845465a2723ad7e1e5c36dcd75ddb82898b3f53be47ebd429fb2fa5d/nvidia_nvtx-13.0.85-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4936d1d6780fbe68db454f5e72a42ff64d1fd6397df9f363ae786930fd5c1cd4", size = 148047, upload-time = "2025-09-04T08:29:01.761Z" },
     { url = "https://files.pythonhosted.org/packages/a8/64/3708a90d1ebe202ffdeb7185f878a3c84d15c2b2c31858da2ce0583e2def/nvidia_nvtx-13.0.85-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6", size = 148878, upload-time = "2025-09-04T08:28:53.627Z" },
+]
+
+[[package]]
+name = "ocnn"
+version = "2.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "torchvision", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "torchvision", version = "0.26.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/2e/ff957eec04f2388477bc9d257d850ed9d77efa268698c56f9b8cc3b10d9b/ocnn-2.3.2.tar.gz", hash = "sha256:a32865a0a856708d71a47fe8e3226d90bbb4bb6ec19a0f47528767b44c84e8a8", size = 50564, upload-time = "2026-05-07T13:20:14.161Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/9b/1e8b3f257bd9b252a4c8b1664fbc7ad76c0cfb07eb4cefba04386e975e4b/ocnn-2.3.2-py3-none-any.whl", hash = "sha256:fb2e30a0101de4c23f71236bd53fec2ac1008eb6aad0de9c0e158ad921dde24c", size = 74739, upload-time = "2026-05-07T13:20:12.314Z" },
 ]
 
 [[package]]
@@ -2893,7 +2958,8 @@ version = "2.3.8"
 source = { editable = "/home/mpatil/Programming/Repos/spconv" }
 dependencies = [
     { name = "ccimport" },
-    { name = "cumm" },
+    { name = "cumm", version = "0.8.2", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'aarch64'" },
+    { name = "cumm", version = "0.8.2", source = { editable = "/home/mpatil/Programming/Repos/cumm" }, marker = "platform_machine == 'aarch64'" },
     { name = "fire" },
     { name = "numpy" },
     { name = "pccm" },
@@ -2994,6 +3060,24 @@ wheels = [
 ]
 
 [[package]]
+name = "timm"
+version = "1.0.27"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "torchvision", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "torchvision", version = "0.26.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/08/54/ece85b0eef3700c90db8271a43669b05a0ebbe2edb1962329c34374a297e/timm-1.0.27.tar.gz", hash = "sha256:315dfe63186ca9fb7ff941268941231fd5be259f2b4bb4afa28560ae1015cb9a", size = 2439861, upload-time = "2026-05-08T19:38:36.844Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1f/2e/26bab7686ff4aed48f8f5f6c23e2aa37b7a37ddd9effe3aa61e908fd518f/timm-1.0.27-py3-none-any.whl", hash = "sha256:5ff07c9ddf53cbada88eab1c93ff175c64cab683b5a2fddf863bcee985926f89", size = 2589280, upload-time = "2026-05-08T19:38:35.034Z" },
+]
+
+[[package]]
 name = "tinycss2"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3036,7 +3120,8 @@ name = "torch"
 version = "2.11.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "sys_platform != 'linux' and sys_platform != 'win32'",
+    "platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
+    "platform_machine != 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "filelock", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -3056,7 +3141,8 @@ name = "torch"
 version = "2.11.0+cu130"
 source = { registry = "https://download.pytorch.org/whl/cu130" }
 resolution-markers = [
-    "sys_platform == 'linux' or sys_platform == 'win32'",
+    "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and sys_platform == 'win32')",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine != 'aarch64' and sys_platform == 'win32')",
 ]
 dependencies = [
     { name = "cuda-bindings", marker = "sys_platform == 'linux'" },
@@ -3100,11 +3186,18 @@ wheels = [
 ]
 
 [[package]]
+name = "torch-scatter"
+version = "2.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/ab/2a44ecac0f891dd0d765fc59ac8d277c6283a31907626560e72685df2ed6/torch_scatter-2.1.2.tar.gz", hash = "sha256:69b3aa435f2424ac6a1bfb6ff702da6eb73b33ca0db38fb26989c74159258e47", size = 108045, upload-time = "2023-10-06T08:49:07.081Z" }
+
+[[package]]
 name = "torchvision"
 version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "sys_platform != 'linux' and sys_platform != 'win32'",
+    "platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
+    "platform_machine != 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "numpy", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -3120,7 +3213,8 @@ name = "torchvision"
 version = "0.26.0+cu130"
 source = { registry = "https://download.pytorch.org/whl/cu130" }
 resolution-markers = [
-    "sys_platform == 'linux' or sys_platform == 'win32'",
+    "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and sys_platform == 'win32')",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine != 'aarch64' and sys_platform == 'win32')",
 ]
 dependencies = [
     { name = "numpy", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },

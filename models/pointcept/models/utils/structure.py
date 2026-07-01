@@ -1,10 +1,6 @@
 import torch
 import spconv.pytorch as spconv
 
-try:
-    import ocnn
-except ImportError:
-    ocnn = None
 from addict import Dict
 from typing import List
 
@@ -79,7 +75,8 @@ class Point(Dict):
         # Although depth is limited to less than 16, we can encode a 655.36^3 (2^16 * 0.01) meter^3
         # cube with a grid size of 0.01 meter. We consider it is enough for the current stage.
         # We can unlock the limitation by optimizing the z-order encoding function if necessary.
-        assert depth <= 16
+        # commented out after removing ocnn
+        # assert depth <= 16
 
         # The serialization codes are arranged as following structures:
         # [Order1 ([n]),
@@ -146,64 +143,3 @@ class Point(Dict):
         )
         self["sparse_shape"] = sparse_shape
         self["sparse_conv_feat"] = sparse_conv_feat
-
-    def octreelization(self, depth=None, full_depth=None):
-        """
-        Point Cloud Octreelization
-
-        Generate octree with OCNN
-        relay on ["grid_coord", "batch", "feat"]
-        """
-        assert (
-            ocnn is not None
-        ), "Please follow https://github.com/octree-nn/ocnn-pytorch install ocnn."
-        assert {"feat", "batch"}.issubset(self.keys())
-        # add 1 to make grid space support shift order
-        if "grid_coord" not in self.keys():
-            # if you don't want to operate GridSampling in data augmentation,
-            # please add the following augmentation into your pipline:
-            # dict(type="Copy", keys_dict={"grid_size": 0.01}),
-            # (adjust `grid_size` to what your want)
-            assert {"grid_size", "coord"}.issubset(self.keys())
-            self["grid_coord"] = torch.div(
-                self.coord - self.coord.min(0)[0], self.grid_size, rounding_mode="trunc"
-            ).int()
-        if depth is None:
-            if "depth" in self.keys():
-                depth = self.depth
-            else:
-                depth = int(self.grid_coord.max() + 1).bit_length()
-        if full_depth is None:
-            full_depth = 1
-        self["depth"] = depth
-        assert depth <= 16  # maximum in ocnn
-
-        # [0, 2**depth] -> [0, 2] -> [-1, 1]
-        coord = self.grid_coord / 2 ** (self.depth - 1) - 1.0
-        point = ocnn.octree.Points(
-            points=coord,
-            features=self.feat,
-            batch_id=self.batch.unsqueeze(-1),
-            batch_size=self.batch[-1] + 1,
-        )
-        octree = ocnn.octree.Octree(
-            depth=depth,
-            full_depth=full_depth,
-            batch_size=self.batch[-1] + 1,
-            device=coord.device,
-        )
-        octree.build_octree(point)
-        octree.construct_all_neigh()
-
-        query_pts = torch.cat([self.grid_coord, point.batch_id], dim=1).contiguous()
-        inverse = octree.search_xyzb(query_pts, depth, True)
-        assert torch.sum(inverse < 0) == 0  # all mapping should be valid
-        inverse_ = torch.unique(inverse)
-        order = torch.zeros_like(inverse_).scatter_(
-            dim=0,
-            index=inverse,
-            src=torch.arange(0, inverse.shape[0], device=inverse.device),
-        )
-        self["octree"] = octree
-        self["octree_order"] = order
-        self["octree_inverse"] = inverse

@@ -1,28 +1,11 @@
 import sys
 import torch.nn as nn
 import spconv.pytorch as spconv
-
-try:
-    import ocnn
-except ImportError:
-    ocnn = None
+import spconv.pytorch.modules as spconv_modules
 
 from collections import OrderedDict
 from pointcept.models.utils.structure import Point
-from pointcept.engines.hooks import HookBase
 
-
-def is_ocnn_module(module):
-    if ocnn is not None:
-        ocnn_modules = (
-            ocnn.nn.OctreeConv,
-            ocnn.nn.OctreeDeconv,
-            ocnn.nn.OctreeGroupConv,
-            ocnn.nn.OctreeDWConv,
-        )
-        return isinstance(module, ocnn_modules)
-    else:
-        return False
 
 
 class PointModule(nn.Module):
@@ -77,22 +60,17 @@ class PointSequential(PointModule):
 
     def forward(self, input):
         for k, module in self._modules.items():
+            if module is None:
+                print(f"Module {k} is None, skipping...")
+                continue
             # Point module
             if isinstance(module, PointModule):
                 input = module(input)
             # Spconv module
-            elif spconv.modules.is_spconv_module(module):
+            elif spconv_modules.is_spconv_module(module):
                 if isinstance(input, Point):
                     input.sparse_conv_feat = module(input.sparse_conv_feat)
                     input.feat = input.sparse_conv_feat.features
-                else:
-                    input = module(input)
-            elif is_ocnn_module(module):
-                if isinstance(input, Point):
-                    input.octree.features[-1] = module(
-                        input.feat[input.octree_order], input.octree, input.octree.depth
-                    )
-                    input.feat = input.octree.features[-1][input.octree_inverse]
                 else:
                     input = module(input)
             # PyTorch module
@@ -111,7 +89,7 @@ class PointSequential(PointModule):
         return input
 
 
-class PointModel(PointModule, HookBase):
+class PointModel(PointModule):
     r"""PointModel
     placeholder, PointModel can be customized as a Pointcept hook.
     """

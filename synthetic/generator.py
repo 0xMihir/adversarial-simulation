@@ -8,6 +8,7 @@ Determinism: seed_used = hash(f"{seed}:{scenario_id}:{stage}:{index}") % 2**31
 from __future__ import annotations
 
 import uuid
+from time import perf_counter
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -107,19 +108,31 @@ class SyntheticSceneGenerator:
         scenario_id: str,
         stage: CurriculumStage,
         index: int = 0,
+        prof: dict[str, float] | None = None,
     ) -> tuple[ParsedScene, SyntheticGroundTruth]:
         """
         Generate one (ParsedScene, SyntheticGroundTruth) pair.
         Deterministic: same (scenario_id, stage, index) always yields identical output.
+
+        If `prof` is a dict, per-phase wall-clock (seconds) is accumulated into it under
+        keys: gen_load (loader.load_scenario, incl. proto parse / LRU miss), gen_synth
+        (element synthesis + randomization + normalization), gen_gt (ground-truth
+        extraction, incl. endpoint adjacency + pydantic model construction). Left None in
+        production so the timing calls are skipped entirely.
         """
         _reset_id_counter()
         seed_used = abs(hash(f"{self.seed}:{scenario_id}:{stage.value}:{index}")) % (2 ** 31)
         rng = np.random.default_rng(seed_used)
         cfg = self.curriculum_cfg.for_stage(stage)
 
+        t0 = perf_counter()
         segments, map_features = self.loader.load_scenario(scenario_id)
+        if prof is not None:
+            prof["gen_load"] = prof.get("gen_load", 0.0) + (perf_counter() - t0)
         if not segments:
             raise ValueError(f"Scenario {scenario_id!r} yielded no surface lane segments")
+
+        t_synth = perf_counter()
 
         # Module 7: pre-normalization layout transform
         M_layout = transform_layout(rng, cfg)
@@ -249,6 +262,9 @@ class SyntheticSceneGenerator:
 
         # Extract ground truth (apply same forward transform to AV2 centerlines)
         M_fwd = DiagramNormalizer.build_forward_transform(centroid, pca_angle, scale)
+        t_gt = perf_counter()
+        if prof is not None:
+            prof["gen_synth"] = prof.get("gen_synth", 0.0) + (t_gt - t_synth)
         gt = self._extract_ground_truth(
             segments=segments,
             map_features=map_features,
@@ -261,6 +277,8 @@ class SyntheticSceneGenerator:
             stage=stage,
             inv_transform=inv_transform,
         )
+        if prof is not None:
+            prof["gen_gt"] = prof.get("gen_gt", 0.0) + (perf_counter() - t_gt)
 
         return norm_scene, gt
 
@@ -484,16 +502,35 @@ class SyntheticSceneGenerator:
 
         threshold = 0.05
         adjacency: dict[str, set[str]] = {eid: set() for eid, _ in endpoints}
+        if len(endpoints) < 2:
+            return {k: sorted(v) for k, v in adjacency.items()}
 
-        for i in range(len(endpoints)):
-            eid_i, pt_i = endpoints[i]
-            for j in range(i + 1, len(endpoints)):
-                eid_j, pt_j = endpoints[j]
-                if eid_i == eid_j:
-                    continue
-                if float(np.linalg.norm(pt_i - pt_j)) < threshold:
-                    adjacency[eid_i].add(eid_j)
-                    adjacency[eid_j].add(eid_i)
+        # Spatial hash: bucket endpoints into a grid of cell size == threshold; two points
+        # within `threshold` must fall in the same or an adjacent cell. This replaces the
+        # O(n^2) all-pairs distance scan (which dominated generate()) with ~O(n): each
+        # point only compares against neighbors in the 3x3 cell block around it.
+        pts = np.stack([pt for _, pt in endpoints])  # (M, 2)
+        cells = np.floor(pts / threshold).astype(np.int64)  # (M, 2)
+        buckets: dict[tuple[int, int], list[int]] = {}
+        for idx, (cx, cy) in enumerate(cells):
+            buckets.setdefault((int(cx), int(cy)), []).append(idx)
+
+        t2 = threshold * threshold
+        for i, (cx, cy) in enumerate(cells):
+            eid_i = endpoints[i][0]
+            pt_i = pts[i]
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    for j in buckets.get((int(cx) + dx, int(cy) + dy), ()):
+                        if j <= i:  # each unordered pair handled once (at the lower i)
+                            continue
+                        eid_j = endpoints[j][0]
+                        if eid_i == eid_j:
+                            continue
+                        d = pt_i - pts[j]
+                        if float(d[0] * d[0] + d[1] * d[1]) < t2:
+                            adjacency[eid_i].add(eid_j)
+                            adjacency[eid_j].add(eid_i)
 
         return {k: sorted(v) for k, v in adjacency.items()}
 

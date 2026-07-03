@@ -76,7 +76,7 @@ torchvision = [
 ]
 
 [tool.uv]
-no-build-isolation-package = ["spconv", "torch-scatter"]
+no-build-isolation-package = ["spconv", "torch-scatter", "torch-cluster"]
 override-dependencies = ["cumm>=0.7.11"]
 
 [tool.uv.extra-build-dependencies]

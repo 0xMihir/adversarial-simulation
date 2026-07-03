@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 from torch_scatter import segment_csr
 
-from models.pointcept.models import PointModule
-from models.pointcept.models.utils.structure import Point
+from pointcept.models import PointModule
+from pointcept.models.utils.structure import Point
 
 
 def build_indptr(
@@ -66,10 +66,14 @@ class PrimitivePooling(PointModule):
     Output: (n_prim, dim) tensor of primitive tokens, where n_prim = sum(nprim_per_sample).
     """
 
-    def __init__(self, pooling_fn: Literal["mean", "max", "attn"], dim: int = 64):
+    def __init__(
+        self, pooling_fn: Literal["mean", "max", "attn", "maxavg"], dim: int = 64
+    ):
         super().__init__()
-        if pooling_fn not in ("mean", "max", "attn"):
-            raise ValueError("pooling_fn must be one of ['mean', 'max', 'attn']")
+        if pooling_fn not in ("mean", "max", "attn", "maxavg"):
+            raise ValueError(
+                "pooling_fn must be one of ['mean', 'max', 'attn', 'maxavg']"
+            )
         self.pooling_fn = pooling_fn
         self.attn_pool = AttnPool(dim) if pooling_fn == "attn" else None
 
@@ -93,4 +97,9 @@ class PrimitivePooling(PointModule):
         if self.pooling_fn == "attn":
             assert self.attn_pool is not None
             return self.attn_pool(feat_sorted, indptr)
+        if self.pooling_fn == "maxavg":
+            # VecFormer Line Pooling: F_j = max_{l in L_j} f + mean_{l in L_j} f
+            pooled_max = segment_csr(feat_sorted, indptr, reduce="max")
+            pooled_mean = segment_csr(feat_sorted, indptr, reduce="mean")
+            return pooled_max + pooled_mean  # (n_prim, dim)
         return segment_csr(feat_sorted, indptr, reduce=self.pooling_fn)  # (n_prim, dim)

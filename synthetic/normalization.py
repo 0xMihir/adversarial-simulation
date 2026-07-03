@@ -204,11 +204,20 @@ class DiagramNormalizer:
         M_fwd = cls.build_forward_transform(centroid, pca_angle, scale)
         M_inv = cls.build_inverse_transform(centroid, pca_angle, scale)
 
-        data = scene.model_dump()
-        norm_scene = ParsedScene.model_validate(data)
-
-        norm_scene.elements = [cls._transform_elem(e, M_fwd) for e in scene.elements]
-        norm_scene.texts = [cls._transform_text(t, M_fwd) for t in scene.texts]
-        norm_scene.vehicles = [cls._transform_vehicle(v, M_fwd, pca_angle) for v in scene.vehicles]
+        # The old path did scene.model_dump() + ParsedScene.model_validate(), which deep-
+        # copies and re-validates every Point2D in the scene — then immediately discards
+        # that geometry by overwriting elements/texts/vehicles below. Instead, shallow-copy
+        # the non-geometry fields with model_construct (no validation) and rebuild only the
+        # three geometry-bearing lists via the transform helpers (which already produce new
+        # Point2D objects). Avoids ~two full re-validations of all scene vertices.
+        norm_scene = scene.model_copy(
+            update={
+                "elements": [cls._transform_elem(e, M_fwd) for e in scene.elements],
+                "texts": [cls._transform_text(t, M_fwd) for t in scene.texts],
+                "vehicles": [
+                    cls._transform_vehicle(v, M_fwd, pca_angle) for v in scene.vehicles
+                ],
+            }
+        )
 
         return norm_scene, M_inv

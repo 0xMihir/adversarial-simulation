@@ -1704,6 +1704,7 @@ dependencies = [
     { name = "pccm" },
     { name = "spconv" },
     { name = "timm" },
+    { name = "torch-cluster" },
     { name = "torch-scatter" },
 ]
 
@@ -1717,6 +1718,7 @@ requires-dist = [
     { name = "pccm", specifier = ">=0.4.16" },
     { name = "spconv", editable = "/home/mpatil/Programming/Repos/spconv" },
     { name = "timm", specifier = ">=1.0.27" },
+    { name = "torch-cluster", specifier = ">=1.6.3" },
     { name = "torch-scatter", specifier = ">=2.1.2" },
 ]
 
@@ -3165,6 +3167,15 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:96911323dcfcd42028c7e8edde7bdf25bb187753234e8775f0f3f112e86a22db", upload-time = "2026-04-27T20:02:14Z" },
     { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-win_amd64.whl", hash = "sha256:ef8beae16d781c3244ef28dc7bee6d8871c26bbde65d5bf66e902cb61972c4ab", upload-time = "2026-04-27T20:03:28Z" },
 ]
+
+[[package]]
+name = "torch-cluster"
+version = "1.6.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/54/31/e7f7a28253cd907404eb652607613b35779140b326d15d0636511b7b9438/torch_cluster-1.6.3.tar.gz", hash = "sha256:78d5a930a5bbd0d8788df8c6d66addd68d6dd292fe3edb401e3dacba26308152", size = 54550, upload-time = "2023-10-12T06:52:43.728Z" }
 
 [[package]]
 name = "torch-geometric"

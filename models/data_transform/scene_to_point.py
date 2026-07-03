@@ -26,7 +26,6 @@ import numpy as np
 import torch
 
 from schema.scene import ParsedScene
-from synthetic.normalization import _pts_to_np
 from synthetic.schema import ElementClass, SyntheticGroundTruth
 from models.primitive_decoder import ELEMENT_CLASSES
 
@@ -89,10 +88,9 @@ def scene_to_lines(
 
     prim_idx = 0
     for elem in scene.elements:
-        if not elem.resampled_points:
+        if elem.resampled_xy.shape[0] == 0:
             continue
-        pts = _pts_to_np(elem.resampled_points)
-        seg = _element_lines(pts, elem.is_closed)
+        seg = _element_lines(elem.resampled_xy, elem.is_closed)
         if seg is None:
             continue
         feat, coord = _lines_to_feat(seg)

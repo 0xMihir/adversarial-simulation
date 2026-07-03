@@ -26,6 +26,8 @@ from scipy.interpolate import CubicSpline
 from schema.scene import AffineMatrix, Point2D, SceneElement, TextElement
 from synthetic.schema import ElementClass
 
+_EMPTY_XY = np.zeros((0, 2), dtype=np.float64)
+
 if TYPE_CHECKING:
     from synthetic.config import RandomizationConfig
     from synthetic.loaders.base import LaneSegmentData
@@ -46,14 +48,6 @@ def _new_id() -> str:
     return f"s{_id_counter:07d}"
 
 
-def _pts_to_np(pts: list[Point2D]) -> np.ndarray:
-    return np.array([[p.x, p.y] for p in pts], dtype=np.float64)
-
-
-def _np_to_pts(arr: np.ndarray) -> list[Point2D]:
-    return [Point2D(x=float(r[0]), y=float(r[1])) for r in arr]
-
-
 def _arc_resample(pts: np.ndarray, n: int) -> np.ndarray:
     """Resample a polyline to exactly n points by arc-length interpolation."""
     if pts.shape[0] < 2:
@@ -71,12 +65,13 @@ def _arc_resample(pts: np.ndarray, n: int) -> np.ndarray:
     return out
 
 
-def _bbox(pts: list[Point2D]) -> tuple[float, float, float, float]:
-    if not pts:
+def _bbox(pts: np.ndarray) -> tuple[float, float, float, float]:
+    if pts.shape[0] == 0:
         return (0.0, 0.0, 0.0, 0.0)
-    xs = [p.x for p in pts]
-    ys = [p.y for p in pts]
-    return (min(xs), min(ys), max(xs), max(ys))
+    return (
+        float(pts[:, 0].min()), float(pts[:, 1].min()),
+        float(pts[:, 0].max()), float(pts[:, 1].max()),
+    )
 
 
 def _make_element(
@@ -90,22 +85,21 @@ def _make_element(
     line_width: float = 1.0,
     faro_item_name: str | None = None,
 ) -> SceneElement:
-    pt_list = _np_to_pts(pts)
     return SceneElement(
         id=_new_id(),
         faro_item_name=faro_item_name,
         layer=layer,
         element_type=element_type,
-        control_points=pt_list,
-        bezier_handles=[],
+        control_xy=pts,
+        bezier_xy=_EMPTY_XY,
         interpolation_method="passthrough",
-        resampled_points=pt_list,
+        resampled_xy=pts,
         transform=_IDENTITY_AFFINE,
         is_closed=is_closed,
         is_dashed=is_dashed,
         line_width=line_width,
         color=color,
-        bbox=_bbox(pt_list),
+        bbox=_bbox(pts),
     )
 
 
@@ -168,13 +162,12 @@ def resample_vertices(
     if rng.random() >= cfg.p_resample_vertices:
         return elem
 
-    pts = _pts_to_np(elem.resampled_points)
+    pts = elem.resampled_xy
     if pts.shape[0] < 2:
         return elem
 
     target_n = int(rng.integers(cfg.vertex_count_min, cfg.vertex_count_max + 1))
     resampled = _arc_resample(pts, target_n)
-    new_pts = _np_to_pts(resampled)
 
     as_polycurve = rng.random() < cfg.p_convert_to_polycurve
 
@@ -183,33 +176,32 @@ def resample_vertices(
         cs_x = CubicSpline(t, resampled[:, 0], bc_type="not-a-knot")
         cs_y = CubicSpline(t, resampled[:, 1], bc_type="not-a-knot")
 
-        # Dense evaluation for resampled_points (20 pts per unit of arc_len, min 20)
+        # Dense evaluation for resampled_xy (20 pts per unit of arc_len, min 20)
         arc_len = float(np.sqrt(np.sum(np.diff(resampled, axis=0) ** 2, axis=1)).sum())
         n_dense = max(20, int(arc_len * 20))
         t_dense = np.linspace(0, target_n - 1, n_dense)
         dense_xy = np.stack([cs_x(t_dense), cs_y(t_dense)], axis=1)
-        dense_pts = _np_to_pts(dense_xy)
 
         # Bezier handles: derivative at each control point scaled to cubic convention
         handles_xy_fwd = np.stack([cs_x(t, 1), cs_y(t, 1)], axis=1) / 3.0
-        bezier_handles = _np_to_pts(resampled + handles_xy_fwd)
+        bezier_xy = resampled + handles_xy_fwd
 
         return elem.model_copy(update=dict(
             element_type="polycurve",
             interpolation_method="cubic_bezier",
-            control_points=new_pts,
-            bezier_handles=bezier_handles,
-            resampled_points=dense_pts,
-            bbox=_bbox(dense_pts),
+            control_xy=resampled,
+            bezier_xy=bezier_xy,
+            resampled_xy=dense_xy,
+            bbox=_bbox(dense_xy),
         ))
     else:
         return elem.model_copy(update=dict(
             element_type="polyline",
             interpolation_method="passthrough",
-            control_points=new_pts,
-            bezier_handles=[],
-            resampled_points=new_pts,
-            bbox=_bbox(new_pts),
+            control_xy=resampled,
+            bezier_xy=_EMPTY_XY,
+            resampled_xy=resampled,
+            bbox=_bbox(resampled),
         ))
 
 
@@ -231,7 +223,7 @@ def jitter_vertices(
     if rng.random() >= cfg.p_jitter_vertices:
         return elem
 
-    pts = _pts_to_np(elem.resampled_points)
+    pts = elem.resampled_xy
     if pts.shape[0] < 3:
         return elem
 
@@ -257,8 +249,7 @@ def jitter_vertices(
             noise_dir /= max(np.linalg.norm(noise_dir), 1e-9)
             jittered[i] += noise_mag * noise_dir
 
-    new_pts = _np_to_pts(jittered)
-    return elem.model_copy(update={"resampled_points": new_pts, "bbox": _bbox(new_pts)})
+    return elem.model_copy(update={"resampled_xy": jittered, "bbox": _bbox(jittered)})
 
 
 # ---------------------------------------------------------------------------

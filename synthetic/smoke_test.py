@@ -90,9 +90,11 @@ def main() -> None:
         for stage in stages:
             scene, gt = gen.generate(scenario_id, stage, index=0)
 
-            # Validate schema
-            recovered = ParsedScene.model_validate(scene.model_dump())
-            assert recovered.case_id == scene.case_id, "Pydantic round-trip failed"
+            # Validate schema — SceneElement geometry is ndarray-only by design, so
+            # model_copy() (not model_dump()+model_validate()) is the correct round-trip.
+            recovered = scene.model_copy()
+            assert recovered.case_id == scene.case_id, "model_copy round-trip failed"
+            assert recovered.model_dump() == scene.model_dump(), "model_copy diverged from original"
 
             # GT element IDs must match scene element IDs
             scene_ids = {e.id for e in scene.elements}

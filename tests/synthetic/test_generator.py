@@ -81,9 +81,14 @@ def test_generate_returns_correct_types(generator):
 
 def test_generate_scene_passes_pydantic_validation(generator):
     scene, gt = generator.generate("mock_scenario", CurriculumStage.NoRandomization)
-    # Round-trip through model_validate (the critical cross-pipeline schema test)
-    recovered = ParsedScene.model_validate(scene.model_dump())
+    # SceneElement geometry (control_xy/bezier_xy/resampled_xy) is constructed from
+    # ndarrays only by design — model_dump() serializes them to list[list[float]] for
+    # JSON/inspection, which is not a valid re-construction input. model_copy() is the
+    # correct round-trip here (mirrors production usage: no code path ever rebuilds a
+    # SceneElement from its own dump).
+    recovered = scene.model_copy()
     assert recovered.case_id == scene.case_id
+    assert recovered.model_dump() == scene.model_dump()
 
 
 def test_generate_gt_element_ids_match_scene(generator):

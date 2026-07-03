@@ -16,7 +16,7 @@ import numpy as np
 from schema.scene import AffineMatrix, ParsedScene, Point2D, SceneElement, TextElement
 from synthetic.config import CurriculumConfig, CurriculumStage
 from synthetic.loaders.base import LaneSegmentData, MapFeatureData, ScenarioLoader
-from synthetic.normalization import DiagramNormalizer, _pts_to_np
+from synthetic.normalization import DiagramNormalizer
 from synthetic.randomization import (
     _apply_layout_to_segments,
     _make_element,
@@ -203,7 +203,7 @@ class SyntheticSceneGenerator:
 
         # Compute bounding box for clutter placement (in current metric coords)
         all_pts = np.concatenate(
-            [_pts_to_np(e.resampled_points) for e, _ in all_elems_pre if e.resampled_points],
+            [e.resampled_xy for e, _ in all_elems_pre if e.resampled_xy.shape[0] > 0],
             axis=0,
         ) if all_elems_pre else np.zeros((0, 2))
         scene_bbox: tuple[float, float, float, float] = (
@@ -386,7 +386,7 @@ class SyntheticSceneGenerator:
         stage: CurriculumStage,
         inv_transform: InverseTransform,
     ) -> SyntheticGroundTruth:
-        from synthetic.normalization import _apply_2d, _pts_to_np
+        from synthetic.normalization import _apply_2d
 
         # Build feature_id → elem_id map from lane_id_to_elem_ids + segment feature refs
         feat_to_elem: dict[str, str] = {}
@@ -489,14 +489,13 @@ class SyntheticSceneGenerator:
         M_fwd: np.ndarray,
     ) -> dict[str, list[str]]:
         """Group elements by shared endpoints in normalized coords (threshold 0.05 units)."""
-        from synthetic.normalization import _apply_2d, _pts_to_np
+        from synthetic.normalization import _apply_2d
         # Collect (elem_id, endpoint_xy) pairs
         endpoints: list[tuple[str, np.ndarray]] = []
         for elem, _ in all_elems:
-            if elem.id in dropped_ids or not elem.resampled_points:
+            if elem.id in dropped_ids or elem.resampled_xy.shape[0] == 0:
                 continue
-            pts = _pts_to_np(elem.resampled_points)
-            pts_norm = _apply_2d(M_fwd, pts)
+            pts_norm = _apply_2d(M_fwd, elem.resampled_xy)
             endpoints.append((elem.id, pts_norm[0]))    # start
             endpoints.append((elem.id, pts_norm[-1]))   # end
 

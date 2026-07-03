@@ -1,24 +1,23 @@
 import numpy as np
-from schema.scene import AffineMatrix, ParsedScene, Point2D, SceneElement
+from schema.scene import AffineMatrix, ParsedScene, SceneElement
 
-from synthetic.normalization import DiagramNormalizer, _apply_2d, _pts_to_np
+from synthetic.normalization import DiagramNormalizer, _apply_2d
 
 _IDENTITY = AffineMatrix(values=[[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 
 
 def _make_elem(pts: list[tuple[float, float]], elem_id: str = "e1") -> SceneElement:
-    pt_list = [Point2D(x=x, y=y) for x, y in pts]
-    xs, ys = [p.x for p in pt_list], [p.y for p in pt_list]
+    xy = np.array(pts, dtype=np.float64)
     return SceneElement(
         id=elem_id,
         element_type="polyline",
-        control_points=pt_list,
+        control_xy=xy,
         interpolation_method="passthrough",
-        resampled_points=pt_list,
+        resampled_xy=xy,
         transform=_IDENTITY,
         is_closed=False,
         is_dashed=False,
-        bbox=(min(xs), min(ys), max(xs), max(ys)),
+        bbox=(float(xy[:, 0].min()), float(xy[:, 1].min()), float(xy[:, 0].max()), float(xy[:, 1].max())),
     )
 
 
@@ -42,10 +41,10 @@ def test_normalize_roundtrip():
     norm_scene, M_inv = DiagramNormalizer.normalize(scene, apply_pca=False)
 
     # Collect normalized vertices
-    norm_pts = _pts_to_np(norm_scene.elements[0].resampled_points)
+    norm_pts = norm_scene.elements[0].resampled_xy
 
     # Apply inverse: should approximately recover original
-    orig_pts = _pts_to_np(scene.elements[0].resampled_points)
+    orig_pts = scene.elements[0].resampled_xy
     recovered = _apply_2d(M_inv, norm_pts)
     np.testing.assert_allclose(recovered, orig_pts, atol=1e-6)
 
@@ -54,7 +53,7 @@ def test_normalize_max_vertex_distance():
     """After normalization, all vertices should be within ±0.5 of origin (unit diagonal)."""
     scene = _make_scene([(0, 0), (100, 0), (100, 50), (0, 50)])
     norm_scene, _ = DiagramNormalizer.normalize(scene, apply_pca=False)
-    pts = _pts_to_np(norm_scene.elements[0].resampled_points)
+    pts = norm_scene.elements[0].resampled_xy
     # The longest diagonal should be ~1.0, so all vertices within radius 0.5 of centroid
     assert np.abs(pts).max() <= 0.6  # some margin for non-square shapes
 

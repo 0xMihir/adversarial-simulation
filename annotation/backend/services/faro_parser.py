@@ -25,6 +25,12 @@ def _pts_to_point2d(pts: list) -> list[Point2D]:
     return [Point2D(x=float(p[0]), y=float(p[1])) for p in pts]
 
 
+def _pts_to_xy(pts: list) -> np.ndarray:
+    if not pts:
+        return np.zeros((0, 2), dtype=np.float64)
+    return np.array(pts, dtype=np.float64).reshape(-1, 2)
+
+
 def _matrix_to_model(mat: np.ndarray) -> AffineMatrix:
     return AffineMatrix(values=mat.tolist())
 
@@ -120,10 +126,10 @@ def parse_scene(far_path: str, case_id: str, clf_pipeline=None, cls_cache=None, 
             faro_item_name=prim.get("name"),
             layer=prim.get("layer"),
             element_type=prim.get("type", "unknown"),
-            control_points=_pts_to_point2d(cp),
-            bezier_handles=_pts_to_point2d(bh),
+            control_xy=_pts_to_xy(cp),
+            bezier_xy=_pts_to_xy(bh),
             interpolation_method=prim.get("interpolation_method", "passthrough"),
-            resampled_points=_pts_to_point2d(rv),
+            resampled_xy=_pts_to_xy(rv),
             transform=_matrix_to_model(prim.get("transform", np.eye(3))),
             is_closed=prim.get("closed", False),
             is_dashed=prim.get("dashed", False),

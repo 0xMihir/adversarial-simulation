@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from schema.scene import AffineMatrix, Point2D, SceneElement
+from schema.scene import AffineMatrix, SceneElement
 from synthetic.config import RandomizationConfig
 from synthetic.randomization import (
     apply_faro_styling,
@@ -15,23 +15,18 @@ from synthetic.schema import ElementClass
 _IDENTITY = AffineMatrix(values=[[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 
 
-def _pts(coords: list[tuple[float, float]]) -> list[Point2D]:
-    return [Point2D(x=x, y=y) for x, y in coords]
-
-
 def _elem(coords: list[tuple[float, float]], eid: str = "e1", is_dashed: bool = False) -> SceneElement:
-    pt_list = _pts(coords)
-    xs, ys = [p.x for p in pt_list], [p.y for p in pt_list]
+    xy = np.array(coords, dtype=np.float64)
     return SceneElement(
         id=eid,
         element_type="polyline",
-        control_points=pt_list,
+        control_xy=xy,
         interpolation_method="passthrough",
-        resampled_points=pt_list,
+        resampled_xy=xy,
         transform=_IDENTITY,
         is_closed=False,
         is_dashed=is_dashed,
-        bbox=(min(xs), min(ys), max(xs), max(ys)),
+        bbox=(float(xy[:, 0].min()), float(xy[:, 1].min()), float(xy[:, 0].max()), float(xy[:, 1].max())),
     )
 
 
@@ -145,7 +140,7 @@ def test_apply_faro_styling_road_edge_always_black():
 def test_apply_faro_styling_no_fire_when_p0():
     cfg = RandomizationConfig(p_apply_faro_styling=0.0)
     elem = _elem([(0, 0), (1, 0)])
-    elem_with_color = SceneElement(**{**elem.model_dump(), "color": "purple", "line_width": 99.0})
+    elem_with_color = elem.model_copy(update={"color": "purple", "line_width": 99.0})
     result = apply_faro_styling(elem_with_color, ElementClass.ROAD_EDGE, np.random.default_rng(0), cfg)
     assert result.color == "purple"
     assert result.line_width == 99.0

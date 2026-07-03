@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+import numpy as np
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer, field_validator
 
 
 class Point2D(BaseModel):
@@ -11,21 +12,63 @@ class AffineMatrix(BaseModel):
     values: list[list[float]]
 
 
+def _empty_xy() -> np.ndarray:
+    return np.zeros((0, 2), dtype=np.float64)
+
+
 class SceneElement(BaseModel):
+    """
+    Geometry is stored as (N,2) float64 numpy arrays (control_xy/bezier_xy/resampled_xy)
+    — the internal hot-path representation. control_points/bezier_handles/resampled_points
+    are read-only Point2D views computed on demand, for boundary consumers (FARO parsing,
+    annotation backend) that validate/serialize per-vertex. Construction takes ndarrays
+    only; convert Point2D lists to arrays explicitly at the call site (see
+    synthetic/normalization.py:pts_to_xy).
+    """
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     id: str
     faro_item_name: str | None = None
     layer: str | None = None
     element_type: str  # polyline | polycurve | line | arc | label | symbol
-    control_points: list[Point2D]
-    bezier_handles: list[Point2D] = []
+    control_xy: np.ndarray  # (N, 2) float64
+    bezier_xy: np.ndarray = Field(default_factory=_empty_xy)  # (M, 2) float64
     interpolation_method: str  # passthrough | cubic_bezier | catmull_rom | linear | none
-    resampled_points: list[Point2D]
+    resampled_xy: np.ndarray  # (K, 2) float64
     transform: AffineMatrix
     is_closed: bool
     is_dashed: bool
     line_width: float | None = None
     color: str | None = None
     bbox: tuple[float, float, float, float]  # minx, miny, maxx, maxy in world coords
+
+    @field_validator("control_xy", "bezier_xy", "resampled_xy")
+    @classmethod
+    def _validate_xy(cls, v: np.ndarray) -> np.ndarray:
+        if v.size == 0:
+            return _empty_xy()
+        if v.ndim != 2 or v.shape[1] != 2 or v.dtype != np.float64:
+            raise ValueError(f"expected (N,2) float64 array, got shape={v.shape} dtype={v.dtype}")
+        return v
+
+    @field_serializer("control_xy", "bezier_xy", "resampled_xy")
+    def _ser_xy(self, v: np.ndarray, _info) -> list[list[float]]:
+        return v.tolist()
+
+    @computed_field
+    @property
+    def control_points(self) -> list[Point2D]:
+        return [Point2D(x=float(r[0]), y=float(r[1])) for r in self.control_xy]
+
+    @computed_field
+    @property
+    def bezier_handles(self) -> list[Point2D]:
+        return [Point2D(x=float(r[0]), y=float(r[1])) for r in self.bezier_xy]
+
+    @computed_field
+    @property
+    def resampled_points(self) -> list[Point2D]:
+        return [Point2D(x=float(r[0]), y=float(r[1])) for r in self.resampled_xy]
 
 
 class TextElement(BaseModel):

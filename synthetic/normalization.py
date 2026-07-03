@@ -26,7 +26,12 @@ from schema.scene import (
 )
 
 
-def _pts_to_np(pts: list[Point2D]) -> np.ndarray:
+def pts_to_xy(pts: list[Point2D]) -> np.ndarray:
+    """Convert a Point2D list to an (N,2) float64 array — the one remaining Point2D→ndarray
+    boundary conversion (TextElement/VehicleDetection fields, and external callers like
+    faro_parser.py). SceneElement geometry no longer needs this on the internal hot path."""
+    if not pts:
+        return np.zeros((0, 2), dtype=np.float64)
     return np.array([[p.x, p.y] for p in pts], dtype=np.float64)
 
 
@@ -51,11 +56,8 @@ class DiagramNormalizer:
 
     @staticmethod
     def collect_all_vertices(scene: ParsedScene) -> np.ndarray:
-        """Gather every Point2D from resampled_points across all elements → (N, 2)."""
-        parts: list[np.ndarray] = []
-        for elem in scene.elements:
-            if elem.resampled_points:
-                parts.append(_pts_to_np(elem.resampled_points))
+        """Gather every vertex from resampled_xy across all elements → (N, 2)."""
+        parts = [e.resampled_xy for e in scene.elements if e.resampled_xy.shape[0] > 0]
         if not parts:
             return np.zeros((0, 2), dtype=np.float64)
         return np.concatenate(parts, axis=0)
@@ -145,27 +147,28 @@ class DiagramNormalizer:
     def apply_transform_to_points(pts: list[Point2D], M: np.ndarray) -> list[Point2D]:
         if not pts:
             return []
-        arr = _pts_to_np(pts)
+        arr = pts_to_xy(pts)
         return _np_to_pts(_apply_2d(M, arr))
 
     @staticmethod
     def _transform_elem(elem: SceneElement, M: np.ndarray) -> SceneElement:
-        new_resampled = _np_to_pts(_apply_2d(M, _pts_to_np(elem.resampled_points))) if elem.resampled_points else []
-        new_control = _np_to_pts(_apply_2d(M, _pts_to_np(elem.control_points))) if elem.control_points else []
-        new_handles = _np_to_pts(_apply_2d(M, _pts_to_np(elem.bezier_handles))) if elem.bezier_handles else []
+        new_resampled = _apply_2d(M, elem.resampled_xy)
+        new_control = _apply_2d(M, elem.control_xy)
+        new_handles = _apply_2d(M, elem.bezier_xy)
 
-        ref_pts = new_resampled or new_control
-        if ref_pts:
-            xs = [p.x for p in ref_pts]
-            ys = [p.y for p in ref_pts]
-            new_bbox = (min(xs), min(ys), max(xs), max(ys))
+        ref_pts = new_resampled if new_resampled.shape[0] > 0 else new_control
+        if ref_pts.shape[0] > 0:
+            new_bbox = (
+                float(ref_pts[:, 0].min()), float(ref_pts[:, 1].min()),
+                float(ref_pts[:, 0].max()), float(ref_pts[:, 1].max()),
+            )
         else:
             new_bbox = elem.bbox
 
         return elem.model_copy(update={
-            "resampled_points": new_resampled,
-            "control_points": new_control,
-            "bezier_handles": new_handles,
+            "resampled_xy": new_resampled,
+            "control_xy": new_control,
+            "bezier_xy": new_handles,
             "bbox": new_bbox,
         })
 
@@ -177,7 +180,7 @@ class DiagramNormalizer:
 
     @staticmethod
     def _transform_vehicle(v: VehicleDetection, M: np.ndarray, pca_angle: float = 0.0) -> VehicleDetection:
-        new_obb = _np_to_pts(_apply_2d(M, _pts_to_np(v.obb))) if v.obb else []
+        new_obb = _np_to_pts(_apply_2d(M, pts_to_xy(v.obb))) if v.obb else []
         center_arr = np.array([[v.center.x, v.center.y]], dtype=np.float64)
         cp = _apply_2d(M, center_arr)[0]
         return v.model_copy(update={

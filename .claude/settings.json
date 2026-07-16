@@ -3,6 +3,7 @@
     "allow": [
       "Bash(uv add:*)",
       "Bash(grep:*)",
+      "Bash(nvidia-smi:*)",
       "WebFetch(domain:pyclothoids.readthedocs.io)",
       "Bash(jupyter nbconvert:*)",
       "Bash(python:*)",

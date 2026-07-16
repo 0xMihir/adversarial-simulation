@@ -30,7 +30,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "rtree>=1.4.1",
     "scipy>=1.16.3",
-    "torch>=2.9.1",
+    "torch==2.12.0",
     "torchvision>=0.24.1",
     "transformers>=4.57.3",
     "fastapi>=0.135.2",
@@ -43,6 +43,11 @@ dependencies = [
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "cumm-spconv"
+url = "https://ratharog.github.io/cumm-spconv/"
 explicit = true
 
 [tool.ruff]
@@ -76,11 +81,21 @@ torchvision = [
 ]
 
 [tool.uv]
-no-build-isolation-package = ["spconv", "torch-scatter", "torch-cluster"]
+no-build-isolation-package = ["spconv", "torch-scatter", "torch-cluster", "flash-attn", "flash-attn-3"]
 override-dependencies = ["cumm>=0.7.11"]
+# Only the dev box (aarch64 Jetson) and Anvil (x86_64 linux) are real targets;
+# restricting this avoids uv's universal resolver trying (and failing) to
+# also cover untested platforms like macOS/Windows x86_64 for cuda-suffixed
+# packages (spconv-cu130 etc.) that only ship linux/win wheels.
+environments = [
+    "platform_machine == 'aarch64' and sys_platform == 'linux'",
+    "platform_machine == 'x86_64' and sys_platform == 'linux'",
+]
 
 [tool.uv.extra-build-dependencies]
 spconv = ["pccm>=0.4.16", "ccimport>=0.4.4", "pybind11>=2.6.0", "fire"]
+flash-attn = ["packaging", "ninja", "wheel", "setuptools", "psutil"]
+flash-attn-3 = ["packaging", "ninja", "wheel", "setuptools", "psutil", "einops"]
 
 [tool.basedpyright]
 pythonVersion = "3.12"

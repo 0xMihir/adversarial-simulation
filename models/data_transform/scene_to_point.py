@@ -28,6 +28,11 @@ import torch
 from schema.scene import ParsedScene
 from synthetic.schema import ElementClass, SyntheticGroundTruth
 from models.primitive_decoder import ELEMENT_CLASSES
+# vocab is a leaf module (numpy only) — safe here. The tokenizer is NOT: it imports
+# lane_graph, whose parent-package __init__ star-imports this module, so a module-level
+# tokenizer import is circular when models.model is imported first. Import it lazily
+# in lane_tokens_for_scene instead.
+from models.seq_grow_graph.vocab import TOK_PAD
 
 FEAT_DIM = 7  # VecFormer line feature; must equal PointTransformerV3 in_channels
 _EPS = 1e-9
@@ -134,17 +139,39 @@ def labels_for_scene(
     return labels
 
 
+def lane_tokens_for_scene(gt: SyntheticGroundTruth) -> np.ndarray:
+    """SeqGrowGraph target token sequence from the GT lane centerlines + topology.
+
+    Runs in the DataLoader worker (before the pydantic gt is discarded); the result is
+    a small (T,) int64 array — ~6KB worst case — that crosses IPC alongside the PTv3
+    arrays. Scenes without lanes serialize to [BOS, EOS].
+    """
+    # lazy: see the import-cycle note at the top of this module
+    from models.data_transform.lane_graph import build_lane_graph
+    from models.seq_grow_graph.tokenizer import encode_graph
+
+    centerlines = {
+        lid: np.array([[p.x, p.y] for p in pts], dtype=np.float64)
+        for lid, pts in gt.lane_centerlines.items()
+    }
+    entry_ids = {lid: list(t.entry_lane_ids) for lid, t in gt.topology.items()}
+    exit_ids = {lid: list(t.exit_lane_ids) for lid, t in gt.topology.items()}
+    return encode_graph(build_lane_graph(centerlines, entry_ids, exit_ids))
+
+
 class SampleArrays(NamedTuple):
     """One scene's PTv3 inputs as plain numpy arrays — the small payload a DataLoader
     worker ships to the main process instead of the fat ParsedScene + GroundTruth pydantic
     objects. `feat`/`coord`/`primitive_id` are the per-line arrays from scene_to_lines;
-    `labels` is per-primitive, ordered by primitive_id ascending (== valid_ids order).
+    `labels` is per-primitive, ordered by primitive_id ascending (== valid_ids order);
+    `lane_tokens` is the serialized SeqGrowGraph lane-graph target (see lane_tokens_for_scene).
     """
 
     feat: np.ndarray  # (N, 7) float32
     coord: np.ndarray  # (N, 3) float32
     primitive_id: np.ndarray  # (N,) int64
     labels: np.ndarray  # (n_prim,) int64
+    lane_tokens: np.ndarray  # (T,) int64, BOS ... EOS
 
 
 def scene_to_arrays(scene: ParsedScene, gt: SyntheticGroundTruth) -> SampleArrays:
@@ -155,7 +182,10 @@ def scene_to_arrays(scene: ParsedScene, gt: SyntheticGroundTruth) -> SampleArray
     """
     feat, coord, prim_id, valid_ids = scene_to_lines(scene)
     labels = labels_for_scene(gt, valid_ids)
-    return SampleArrays(feat=feat, coord=coord, primitive_id=prim_id, labels=labels)
+    lane_tokens = lane_tokens_for_scene(gt)
+    return SampleArrays(
+        feat=feat, coord=coord, primitive_id=prim_id, labels=labels, lane_tokens=lane_tokens
+    )
 
 
 def batch_point_dict(
@@ -169,7 +199,8 @@ def batch_point_dict(
 
     Returns:
         data_dict: dict with coord (N,3), feat (N,7), batch (N,), grid_size (scalar),
-                   primitive_id (N,), nprim_per_sample (B,).
+                   primitive_id (N,), nprim_per_sample (B,), lane_tokens (B, T_max)
+                   right-padded with TOK_PAD.
         labels:    (sum nprim,) long, ordered per-sample then primitive_id ascending,
                    matching PrimitivePooling's output row order.
     """
@@ -188,12 +219,18 @@ def batch_point_dict(
         label_parts.append(s.labels)
         nprim_per_sample.append(int(s.labels.shape[0]))
 
+    t_max = max(s.lane_tokens.shape[0] for s in samples)
+    lane_tokens = np.full((len(samples), t_max), TOK_PAD, dtype=np.int64)
+    for b, s in enumerate(samples):
+        lane_tokens[b, : s.lane_tokens.shape[0]] = s.lane_tokens
+
     data_dict = {
         "coord": torch.from_numpy(np.concatenate(coords, axis=0)),
         "feat": torch.from_numpy(np.concatenate(feats, axis=0)),
         "batch": torch.from_numpy(np.concatenate(batch_idx, axis=0)),
         "primitive_id": torch.from_numpy(np.concatenate(prim_ids, axis=0)),
         "nprim_per_sample": torch.tensor(nprim_per_sample, dtype=torch.long),
+        "lane_tokens": torch.from_numpy(lane_tokens),
         "grid_size": grid_size,
     }
     labels = torch.from_numpy(np.concatenate(label_parts, axis=0))

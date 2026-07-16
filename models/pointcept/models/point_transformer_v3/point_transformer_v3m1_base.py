@@ -15,6 +15,11 @@ import torch_scatter
 from timm.layers.drop import DropPath
 
 try:
+    import flash_attn_interface as flash_attn3
+except ImportError:
+    flash_attn3 = None
+
+try:
     import flash_attn
 except ImportError:
     flash_attn = None
@@ -84,7 +89,12 @@ class SerializedAttention(PointModule):
             assert (
                 upcast_softmax is False
             ), "Set upcast_softmax to False when enable Flash Attention"
-            assert flash_attn is not None, "Make sure flash_attn is installed."
+            assert (
+                flash_attn3 is not None or flash_attn is not None
+            ), "Make sure flash_attn (FA2) or flash_attn_interface (FA3) is installed."
+            self.use_fa3 = flash_attn3 is not None
+            if self.use_fa3:
+                assert attn_drop == 0.0, "FA3 (flash_attn_interface) doesn't support dropout."
             self.patch_size = patch_size
             self.attn_drop = attn_drop
             self.flash_dtype = None
@@ -212,13 +222,28 @@ class SerializedAttention(PointModule):
                     if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
                     else torch.float16
                 )
-            feat = flash_attn.flash_attn_varlen_qkvpacked_func(
-                qkv.to(self.flash_dtype).reshape(-1, 3, H, C // H),
-                cu_seqlens,
-                max_seqlen=self.patch_size,
-                dropout_p=self.attn_drop if self.training else 0,
-                softmax_scale=self.scale,
-            ).reshape(-1, C)
+            qkv_flash = qkv.to(self.flash_dtype).reshape(-1, 3, H, C // H)
+            if self.use_fa3:
+                q, k, v = qkv_flash.unbind(dim=1)  # each (N', H, C//H)
+                out = flash_attn3.flash_attn_varlen_func(
+                    q,
+                    k,
+                    v,
+                    cu_seqlens,
+                    cu_seqlens,
+                    max_seqlen_q=self.patch_size,
+                    max_seqlen_k=self.patch_size,
+                    softmax_scale=self.scale,
+                )
+                feat = (out[0] if isinstance(out, tuple) else out).reshape(-1, C)
+            else:
+                feat = flash_attn.flash_attn_varlen_qkvpacked_func(
+                    qkv_flash,
+                    cu_seqlens,
+                    max_seqlen=self.patch_size,
+                    dropout_p=self.attn_drop if self.training else 0,
+                    softmax_scale=self.scale,
+                ).reshape(-1, C)
             feat = feat.to(qkv.dtype)
         feat = feat[inverse]
 

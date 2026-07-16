@@ -3,9 +3,15 @@ name = "models"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "flash-attn>=2.8.4",
+    "flash-attn>=2.8.4; platform_machine == 'aarch64'",
+    "flash-attn-3; platform_machine == 'x86_64'",
     "cumm>=0.8.2",
-    "spconv",
+    "spconv; platform_machine == 'aarch64'",
+    # No bare "spconv" wheel exists on PyPI (only cuda-suffixed variants);
+    # cu130 prebuilt wheels come from the ratharog cumm-spconv index (matches
+    # our cu13x toolkit/torch exactly, unlike PyPI's cu126-only official wheels).
+    "spconv-cu130; platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "cumm-cu130; platform_machine == 'x86_64' and sys_platform == 'linux'",
     "ocnn>=2.3.2",
     "torch-scatter>=2.1.2",
     "torch-cluster>=1.6.3",
@@ -21,9 +27,25 @@ name = "jetson-ai-lab"
 url = "https://pypi.jetson-ai-lab.io/sbsa/cu130"
 explicit = true
 
+[[tool.uv.index]]
+name = "cumm-spconv"
+url = "https://ratharog.github.io/cumm-spconv/"
+explicit = true
+
 
 [tool.uv.sources]
-flash-attn = { index = "jetson-ai-lab" }
+flash-attn = [
+  { index = "jetson-ai-lab", marker = "platform_machine == 'aarch64'" },
+]
+# FA3 (Hopper/H100-only): no official PyPI wheel. The windreamer prebuilt wheel
+# (github.com/windreamer/flash-attention3-wheels) was tried but is tagged bare
+# "linux_x86_64" (not a real manylinux tag) and needs GLIBC_2.32 — newer than
+# Anvil's actual 2.28, so it doesn't load there. Source-built from the hopper/
+# subdirectory instead, which compiles against whatever glibc is actually
+# present. Importable as `flash_attn_interface` (see PTv3 backbone patch).
+flash-attn-3 = { git = "https://github.com/Dao-AILab/flash-attention.git", subdirectory = "hopper" }
+spconv-cu130 = { index = "cumm-spconv", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" }
+cumm-cu130 = { index = "cumm-spconv", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" }
 # Editable path installs: git source installs don't include tensorview headers
 # (those only ship in prebuilt wheels or CUMM_DISABLE_JIT=1 builds), and
 # Blackwell (sm_121) isn't supported for precompiled kernels in 0.8.2.

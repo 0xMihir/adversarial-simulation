@@ -33,7 +33,12 @@
       "Read(//usr/local/cuda-13.0/targets/sbsa-linux/lib/**)",
       "Bash(uv --version)",
       "Bash(PATH=/usr/local/cuda/bin:__TRACKED_VAR__ uv run python3 -c 'import spconv; print\\('\\\\''spconv imported OK'\\\\''\\)')",
-      "Bash(/usr/local/cuda/bin/nvcc -I /usr/local/cuda/include -I /home/mpatil/Programming/Repos/cumm/include -std=c++17 --expt-relaxed-constexpr -E /tmp/chk2.cu)"
+      "Bash(/usr/local/cuda/bin/nvcc -I /usr/local/cuda/include -I /home/mpatil/Programming/Repos/cumm/include -std=c++17 --expt-relaxed-constexpr -E /tmp/chk2.cu)",
+      "Bash(ssh patil139@gilbreth.rcac.purdue.edu 'source ~/.zprofile 2>/dev/null; source ~/.bashrc 2>/dev/null *)",
+      "Bash(ssh patil139@gilbreth.rcac.purdue.edu 'echo \"===EXISTING SCRATCH CHECKOUT===\"; cd /scratch/gilbreth/patil139/adversarial-simulation && git status 2>&1 | head -5; echo \"--branch--\"; git branch --show-current 2>&1; echo \"--last commit--\"; git log --oneline -1 2>&1; echo \"--has .venv--\"; ls -d .venv 2>&1 *)",
+      "Bash(ssh patil139@gilbreth.rcac.purdue.edu 'echo \"===SLIST \\(queues\\)===\"; slist 2>&1 | head -40 *)",
+      "Bash(ssh patil139@gilbreth.rcac.purdue.edu 'V=/scratch/gilbreth/patil139/adversarial-simulation/.venv *)",
+      "Bash(ssh gilbreth-train *)"
     ],
     "additionalDirectories": [
       "/home/patil139/scratch/adversarial-simulation/synthetic/loaders",

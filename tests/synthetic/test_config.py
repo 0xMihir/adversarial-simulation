@@ -14,8 +14,8 @@ def test_all_probability_fields_in_range():
 def test_for_stage_returns_correct_config():
     cc = CurriculumConfig()
     assert cc.for_stage(CurriculumStage.NoRandomization) is cc.stage_no_randomization
-    assert cc.for_stage(CurriculumStage.PartialRandomization) is cc.stage_b
-    assert cc.for_stage(CurriculumStage.FullRandomization) is cc.stage_c
+    assert cc.for_stage(CurriculumStage.PartialRandomization) is cc.stage_partial_randomization
+    assert cc.for_stage(CurriculumStage.FullRandomization) is cc.stage_full_randomization
 
 
 _MODULE_ENABLE_FIELDS = {

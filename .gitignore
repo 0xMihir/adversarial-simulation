@@ -11,6 +11,8 @@ wheels/
 
 output/
 wandb/
-.DS_Store
+scratch/
+checkpoints*/
 
+.DS_Store
 .env

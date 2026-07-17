@@ -1,7 +1,10 @@
 """
 Joint training on synthetic CISS-like scenes generated from WOMD scenarios:
 PTv3 backbone -> per-primitive pooling -> {ElementClass classifier, SeqGrowGraph
-autoregressive lane-graph head}. Loss = cls_CE + LAMBDA_SEQ * weighted seq_CE.
+autoregressive lane-graph head}. Loss = cls_CE + lambda_seq * weighted seq_CE.
+
+Every knob lives in train_config.py and is overridable by env var or CLI flag
+(`--help` lists them all); see that file's docstring for A/B and resume examples.
 """
 
 import os
@@ -36,19 +39,14 @@ from models.seq_grow_graph.vocab import (
 )
 from transformers.optimization import get_wsd_schedule
 
+from train_config import TrainConfig, build_config, pretty, wandb_config
+
 # --- config ---
-DATA_ROOT = Path("~/data/waymo_motion").expanduser()
-# Per-GPU batch size (DDP replicates this per rank; effective batch = BATCH_SIZE * world_size).
-BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "128"))
-NUM_WORKERS = int(os.environ.get("NUM_WORKERS", "16"))
-GRAD_ACCUM = int(os.environ.get("GRAD_ACCUM", "1"))  # micro-steps per optimizer update
-PREFETCH_FACTOR = 16  # batches prefetched per worker
-LR = 1e-3
-WEIGHT_DECAY = 0.05
-WSD_WARMUP_RATIO = 0.05
-WSD_STABLE_RATIO = 0.3
-WSD_MIN_DECAY_RATIO = 0.1
-EPOCHS = 50
+# Every knob lives in train_config.py (precedence: defaults < env < CLI). CFG is assigned
+# once, first thing in main(); the helpers below read it instead of taking it as a param.
+CFG: TrainConfig | None = None
+
+# --- runtime state (NOT config: facts about this process, resolved during startup) ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # Overridden under DDP: True only on global rank 0 (gates wandb/prints/checkpointing so
 # they don't happen world_size times over).
@@ -56,45 +54,10 @@ IS_MAIN = True
 # Rank suffix for heartbeat/crash-dump filenames so concurrent DDP ranks don't clobber
 # each other's diagnostics; stays 0 (no visible change) for single-GPU runs.
 _RANK = 0
-LOG_EVERY = 20
-# Weight of the SeqGrowGraph lane-graph next-token loss in the joint objective
-# L = cls_CE + LAMBDA_SEQ * seq_CE.
-LAMBDA_SEQ = 1.0
-
-CKPT_EVERY = 1000 # TODO: hack for spconv crashes
-# Run-specific knobs are env-overridable so an A/B pair launches from one committed file:
-#   RUN_NAME       wandb run label (tell the two runs apart)
-#   GRAD_CLIP     grad-norm clip; "none"/unset = off (reproduce spikes), e.g. "1.0" = fix
-#   CKPT_DIR       where checkpoints go (keep A and B in separate dirs)
-CKPT_DIR = Path(os.environ.get("CKPT_DIR", "checkpoints"))
-USE_WANDB = True
-RUN_NAME: str | None = os.environ.get("RUN_NAME") or None
-
-_clip_env = os.environ.get("GRAD_CLIP", "none").strip().lower()
-
-# Resume: path to a checkpoint saved by save_checkpoint() (model+optim+sched+step), or
-# None to start fresh. When set, training continues from the saved _global_step with the
-# optimizer moments and WSD scheduler position restored, so the LR schedule and Adam state
-# are exactly what they'd be in an uninterrupted run — required to faithfully reproduce
-# step-dependent dynamics like the post-15k loss spikes.
-RESUME_FROM: Path | None = None
-
-# Gradient clipping. None disables it (original behavior that produced the spikes). Set to
-# a float (e.g. 1.0) via the GRAD_CLIP env var to clip grad L2-norm before optimizer.step().
-# We log the pre-clip grad norm regardless so a spike in grad_norm can be correlated with
-# the loss spikes even when clipping is off.
-GRAD_CLIP_NORM: float | None = None if _clip_env in ("none", "", "0") else float(_clip_env)
-
-# Profiling: log per-stage wall-clock (seconds) to wandb to find Python bottlenecks.
-PROFILE = True
-# PROFILE_SYNC forces a cuda.synchronize() after every GPU stage so forward/backward
-# timings reflect real compute instead of async kernel-launch time. This SERIALIZES the
-# GPU (blocks the CPU from queuing ahead), inflates idle, and slows real training — it is
-# a measurement tool, not a training setting. Now that the data loader is fixed (data_s
-# ~0 in steady state), keep it OFF for real runs; flip on only to re-attribute per-stage
-# GPU time. Note per-stage forward/backward numbers are meaningless (async) while off.
-PROFILE_SYNC = False
-PROFILE_LOG_EVERY = 20
+# CFG.use_wandb is the user's intent; this is that intent AND'd with the rank gate, so only
+# rank 0 logs. Derived once in main() — kept separate so the frozen config keeps recording
+# what was asked for, not what rank 0-ness reduced it to.
+WANDB_ON = False
 
 # Monotonic step counter for a continuous wandb x-axis across epochs.
 _global_step = 0
@@ -122,11 +85,11 @@ def _host_ram_available_gb() -> float | None:
 
 
 def _write_heartbeat(step: int) -> None:
-    """Rewrite CKPT_DIR/heartbeat_rank{N}.json each step. If the process VANISHES (no
+    """Rewrite ckpt_dir/heartbeat_rank{N}.json each step. If the process VANISHES (no
     python traceback), the last heartbeat's step+timestamp shows it was killed externally
     (earlyoom / OOM), not a raised spconv error."""
     try:
-        (CKPT_DIR / f"heartbeat_rank{_RANK}.json").write_text(
+        (CFG.ckpt_dir / f"heartbeat_rank{_RANK}.json").write_text(
             json.dumps(
                 {
                     "step": step,
@@ -188,7 +151,7 @@ def _dump_crash_batch(step: int, cpu_snap: dict, err: BaseException) -> Path | N
         ):
             if torch.is_tensor(cpu_snap.get(k)):
                 dump[k] = cpu_snap[k]
-        path = CKPT_DIR / f"crash_dump_step{step}_rank{_RANK}.pt"
+        path = CFG.ckpt_dir / f"crash_dump_step{step}_rank{_RANK}.pt"
         torch.save(dump, path)
         return path
     except Exception:
@@ -202,7 +165,9 @@ def _to_device(data_dict, labels):
 
 
 def _sync():
-    if PROFILE_SYNC and DEVICE == "cuda":
+    # startswith, not ==: under DDP, DEVICE is "cuda:0"/"cuda:1", so an equality check made
+    # profile_sync a silent no-op on every multi-GPU run.
+    if CFG.profile_sync and DEVICE.startswith("cuda"):
         torch.cuda.synchronize()
 
 
@@ -255,7 +220,7 @@ def load_checkpoint(path, model, optimizer, scheduler):
 
 
 def run_epoch(
-    model,
+    model: nn.Module | DDP,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer | None = None,
     scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
@@ -285,7 +250,7 @@ def run_epoch(
       - gen_synth:     element synthesis + randomization + normalization
       - gen_gt:        ground-truth extraction (endpoint adjacency + pydantic build)
     Plus a starvation signal, prof_step/starved_ratio = data / (per-batch worker cost),
-    where per-batch worker cost = sum(getitem_total) / NUM_WORKERS. Ratio >> 1 means the
+    where per-batch worker cost = sum(getitem_total) / num_workers. Ratio >> 1 means the
     batch was already prefetched and you're GPU-bound; ratio ~1 means the workers can't
     refill the prefetch buffer fast enough (the sawtooth spikes).
     """
@@ -310,7 +275,7 @@ def run_epoch(
 
     stages = ("data", "transform", "to_device", "forward", "backward", "step")
     prof = {k: 0.0 for k in stages}  # epoch accumulators
-    accum_count = 0  # micro-steps done in the current GRAD_ACCUM window
+    accum_count = 0  # micro-steps done in the current grad_accum window
 
     context = torch.enable_grad() if is_train else torch.no_grad()
     with context:
@@ -326,7 +291,7 @@ def run_epoch(
             )  # wall-clock at receipt, comparable to worker stamps
             step_prof["data"] = t - t_prev
 
-            worker_prof = batch.get("worker_prof")  # None when PROFILE off
+            worker_prof = batch.get("worker_prof")  # None when profile off
 
             # The dataset transforms scenes -> PTv3 arrays in its workers and its collate_fn
             # assembles the batch, so the data_dict/labels arrive ready. (scene_to_lines no
@@ -359,13 +324,14 @@ def run_epoch(
                 logits, seq_logits = model(data_dict)
                 cls_loss = F.cross_entropy(logits, labels)
                 seq_tgt = data_dict["lane_tokens"][:, 1:]
+                raw_module = model.module if hasattr(model, "module") else model
                 seq_loss = F.cross_entropy(
                     seq_logits.reshape(-1, VOCAB_SIZE),
                     seq_tgt.reshape(-1),
-                    weight=model.seq_head.token_weights,
+                    weight=raw_module.seq_head.token_weights,
                     ignore_index=TOK_PAD,
                 )
-                loss = cls_loss + LAMBDA_SEQ * seq_loss
+                loss = cls_loss + CFG.lambda_seq * seq_loss
                 _sync()
                 t, t0 = time.perf_counter(), t
                 step_prof["forward"] = t - t0
@@ -374,13 +340,13 @@ def run_epoch(
                 at_boundary = True
                 if is_train:
                     accum_count += 1
-                    at_boundary = accum_count % GRAD_ACCUM == 0
+                    at_boundary = accum_count % CFG.grad_accum == 0
                     # DDP all-reduces grads on every backward; skip it on intermediate
                     # micro-steps and only sync on the accumulation boundary.
                     use_nosync = hasattr(model, "no_sync") and not at_boundary
                     sync_ctx = model.no_sync() if use_nosync else nullcontext()
                     with sync_ctx:
-                        (loss / GRAD_ACCUM).backward()  # scale so grads average the big batch
+                        (loss / CFG.grad_accum).backward()  # scale so grads average the big batch
                     _sync()
                     t, t0 = time.perf_counter(), t
                     step_prof["backward"] = t - t0
@@ -402,7 +368,9 @@ def run_epoch(
                 # clip_grad_norm_ returns the pre-clip total norm; capture it either way so
                 # a grad_norm blowup can be lined up against the loss spikes even when
                 # clipping is off (max_norm=inf is a no-op that still measures the norm).
-                clip_to = GRAD_CLIP_NORM if GRAD_CLIP_NORM is not None else float("inf")
+                clip_to = (
+                    CFG.grad_clip_norm if CFG.grad_clip_norm is not None else float("inf")
+                )
                 grad_norm = torch.nn.utils.clip_grad_norm_(
                     model.parameters(), max_norm=clip_to
                 )
@@ -437,7 +405,7 @@ def run_epoch(
                 # crash_dump_step*.pt instead). Disambiguates the two identical-looking
                 # deaths in wandb. See scratch/spconv_debug/README.md.
                 _write_heartbeat(_global_step)
-                if USE_WANDB and step % LOG_EVERY == 0:
+                if WANDB_ON and step % CFG.log_every == 0:
                     log = {
                         "train/step_loss": float(loss),
                         "train/cls_loss": float(cls_loss),
@@ -470,8 +438,8 @@ def run_epoch(
                     log["sys/cuda_alloc_gb"] = torch.cuda.memory_allocated() / 1e9
                     wandb.log(log, step=_global_step)
 
-                if IS_MAIN and CKPT_EVERY > 0 and _global_step % CKPT_EVERY == 0:
-                    ckpt_path = CKPT_DIR / f"model_step{_global_step}.pt"
+                if IS_MAIN and CFG.ckpt_every > 0 and _global_step % CFG.ckpt_every == 0:
+                    ckpt_path = CFG.ckpt_dir / f"model_step{_global_step}.pt"
                     save_model = model.module if hasattr(model, "module") else model
                     save_checkpoint(
                         ckpt_path, save_model, optimizer, scheduler, _global_step, epoch
@@ -480,7 +448,7 @@ def run_epoch(
 
             # High-frequency per-step stage timings (train only; the interesting signal
             # is data-load fluctuation while the GPU is fed).
-            if PROFILE and is_train and step % PROFILE_LOG_EVERY == 0:
+            if CFG.profile and is_train and step % CFG.profile_log_every == 0:
                 step_secs = sum(step_prof.values())
                 msg = {f"prof_step/{k}_s": v for k, v in step_prof.items()}
                 msg["prof_step/total_s"] = step_secs
@@ -502,7 +470,7 @@ def run_epoch(
                     # Wall-clock the batch's workers spent generating, if perfectly spread
                     # across NUM_WORKERS. Compared against how long we actually blocked.
                     per_batch_worker_s = worker_prof["getitem_total_sum"] / max(
-                        NUM_WORKERS, 1
+                        CFG.num_workers, 1
                     )
                     msg["prof_step/worker/per_batch_s"] = per_batch_worker_s
                     msg["prof_step/starved_ratio"] = step_prof["data"] / max(
@@ -541,7 +509,7 @@ def run_epoch(
                 if grad_norm is not None:
                     msg["prof_step/grad_norm"] = float(grad_norm)
 
-                if USE_WANDB:
+                if WANDB_ON:
                     wandb.log(msg, step=_global_step)
 
             t_prev = time.perf_counter()
@@ -561,11 +529,11 @@ def run_epoch(
     mean_seq_loss = total_seq_loss / max(n_batches, 1)
     seq_acc = total_seq_correct / max(total_seq_tokens, 1)
 
-    if PROFILE:
+    if CFG.profile:
         nb = max(n_batches, 1)
         per_batch = {f"prof/{split}/{k}_s": v / nb for k, v in prof.items()}
         per_batch[f"prof/{split}/total_s"] = sum(prof.values()) / nb
-        if USE_WANDB:
+        if WANDB_ON:
             wandb.log({"epoch": epoch, **per_batch}, step=_global_step)
         if IS_MAIN:
             print(
@@ -579,69 +547,75 @@ def run_epoch(
 
 
 def main():
-    global DEVICE, USE_WANDB, IS_MAIN, _RANK
+    global CFG, DEVICE, WANDB_ON, IS_MAIN, _RANK
+    # Parse before dist.init_process_group: a bad flag then exits every rank cleanly instead
+    # of hanging the survivors in the NCCL rendezvous. torchrun forwards argv to all ranks,
+    # so each parses the same thing.
+    CFG = build_config()
+
     # torchrun sets LOCAL_RANK on every launched process; its absence means single-GPU.
     ddp = "LOCAL_RANK" in os.environ
     local_rank = 0
+    world_size = 1
     if ddp:
         dist.init_process_group(backend="nccl")
         local_rank = int(os.environ["LOCAL_RANK"])
         _RANK = dist.get_rank()
+        world_size = dist.get_world_size()
         torch.cuda.set_device(local_rank)
         DEVICE = f"cuda:{local_rank}"
         IS_MAIN = _RANK == 0
         if IS_MAIN:
-            print(f"[ddp] world_size={dist.get_world_size()} device={DEVICE}")
-    USE_WANDB = USE_WANDB and IS_MAIN
+            print(f"[ddp] world_size={world_size} device={DEVICE}")
+    WANDB_ON = CFG.use_wandb and IS_MAIN
+
+    # Echo every knob once, on rank 0, so a run's log says exactly what it ran with.
+    if IS_MAIN:
+        print(pretty(CFG, device=DEVICE, world_size=world_size), flush=True)
 
     # Ensure the checkpoint dir exists up front so the per-step heartbeat and any
     # pre-first-checkpoint crash dump have somewhere to write (a crash can happen before
-    # step CKPT_EVERY, when save_checkpoint would otherwise be the first to mkdir it).
-    CKPT_DIR.mkdir(parents=True, exist_ok=True)
+    # step ckpt_every, when save_checkpoint would otherwise be the first to mkdir it).
+    CFG.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    # PREGEN_DIR: root of train/pregen.py output. The on-the-fly synthetic pipeline
-    # costs ~50 CPU-s per batch vs the H100's ~0.75s/step — more generation than the
-    # 24-cores-per-GPU allocation can sustain (GPU duty-cycled at ~40-50%). Pre-generated
-    # shards replay the identical NoRandomization samples at memcpy cost.
-    pregen_dir = os.environ.get("PREGEN_DIR")
-    if pregen_dir:
+    if CFG.pregen_dir:
         from synthetic.pregen_dataset import PregenCISSDataset
 
-        train_set = PregenCISSDataset(Path(pregen_dir) / "training", profile=PROFILE)
-        val_set = PregenCISSDataset(Path(pregen_dir) / "validation", profile=PROFILE)
+        train_set = PregenCISSDataset(CFG.pregen_dir / "training", profile=CFG.profile)
+        val_set = PregenCISSDataset(CFG.pregen_dir / "validation", profile=CFG.profile)
     else:
-        train_loader_src = WOMDScenarioLoader(DATA_ROOT / "training")
-        val_loader_src = WOMDScenarioLoader(DATA_ROOT / "validation")
+        train_loader_src = WOMDScenarioLoader(CFG.data_root / "training")
+        val_loader_src = WOMDScenarioLoader(CFG.data_root / "validation")
 
         train_set = SyntheticCISSDataset(
-            train_loader_src, CurriculumStage.NoRandomization, profile=PROFILE
+            train_loader_src, CurriculumStage.NoRandomization, profile=CFG.profile
         )
         val_set = SyntheticCISSDataset(
-            val_loader_src, CurriculumStage.NoRandomization, profile=PROFILE
+            val_loader_src, CurriculumStage.NoRandomization, profile=CFG.profile
         )
 
     # Keep workers alive between epochs so scene generators aren't rebuilt, and prefetch
     # several batches ahead so the GPU never waits on data.
-    persistent = NUM_WORKERS > 0
-    prefetch = PREFETCH_FACTOR if NUM_WORKERS > 0 else None
+    persistent = CFG.num_workers > 0
+    prefetch = CFG.prefetch_factor if CFG.num_workers > 0 else None
     train_sampler = DistributedSampler(train_set, shuffle=True) if ddp else None
     val_sampler = DistributedSampler(val_set, shuffle=False) if ddp else None
     train_loader = DataLoader(
         train_set,
-        batch_size=BATCH_SIZE,
+        batch_size=CFG.batch_size,
         shuffle=(train_sampler is None),
         sampler=train_sampler,
-        num_workers=NUM_WORKERS,
+        num_workers=CFG.num_workers,
         collate_fn=SyntheticCISSDataset.collate_fn,
         persistent_workers=persistent,
         prefetch_factor=prefetch,
     )
     val_loader = DataLoader(
         val_set,
-        batch_size=BATCH_SIZE,
+        batch_size=CFG.batch_size,
         shuffle=False,
         sampler=val_sampler,
-        num_workers=NUM_WORKERS,
+        num_workers=CFG.num_workers,
         collate_fn=SyntheticCISSDataset.collate_fn,
         persistent_workers=persistent,
         prefetch_factor=prefetch,
@@ -649,12 +623,12 @@ def main():
 
     model = Model().to(DEVICE)
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY, fused=True
+        model.parameters(), lr=CFG.lr, weight_decay=CFG.weight_decay, fused=True
     )
-    # One optimizer update per GRAD_ACCUM micro-batches.
-    total_steps = EPOCHS * (len(train_loader) // GRAD_ACCUM)
-    warmup_steps = int(total_steps * WSD_WARMUP_RATIO)
-    stable_steps = int(total_steps * WSD_STABLE_RATIO)
+    # One optimizer update per grad_accum micro-batches.
+    total_steps = CFG.epochs * (len(train_loader) // CFG.grad_accum)
+    warmup_steps = int(total_steps * CFG.wsd_warmup_ratio)
+    stable_steps = int(total_steps * CFG.wsd_stable_ratio)
     decay_steps = total_steps - warmup_steps - stable_steps
 
     scheduler = get_wsd_schedule(
@@ -662,41 +636,42 @@ def main():
         num_warmup_steps=warmup_steps,
         num_decay_steps=decay_steps,
         num_training_steps=total_steps,
-        min_lr_ratio=WSD_MIN_DECAY_RATIO,
+        min_lr_ratio=CFG.wsd_min_decay_ratio,
     )
 
     global _global_step
     start_epoch = 0
-    if RESUME_FROM is not None:
+    if CFG.resume_from is not None:
         # Load into the raw (pre-DDP-wrap) model: DDP's constructor broadcasts rank 0's
         # weights to every rank, so this alone is enough to resume consistently under DDP.
         _global_step, start_epoch = load_checkpoint(
-            RESUME_FROM, model, optimizer, scheduler
+            CFG.resume_from, model, optimizer, scheduler
         )
 
     if ddp:
         model = DDP(model, device_ids=[local_rank])
 
-    if USE_WANDB:
+    if WANDB_ON:
+        # id+resume continue an existing run's curves (see the wandb_id knob); both None =
+        # a fresh run. Since _global_step was restored above, wandb picks the x-axis back up
+        # where the crash left off rather than replaying from 0.
         wandb.init(
             project="adversarial-simulation",
-            name=RUN_NAME,
-            config={
-                "batch_size": BATCH_SIZE,
-                "grad_accum": GRAD_ACCUM,
-                "lr": LR,
-                "weight_decay": WEIGHT_DECAY,
-                "epochs": EPOCHS,
-                "num_classes": NUM_ELEMENT_CLASSES,
-                "lambda_seq": LAMBDA_SEQ,
-                "seq_vocab_size": VOCAB_SIZE,
-                "grad_clip_norm": GRAD_CLIP_NORM,
-                "resume_from": str(RESUME_FROM) if RESUME_FROM else None,
-                "world_size": dist.get_world_size() if ddp else 1,
-            },
+            name=CFG.run_name,
+            id=CFG.wandb_id,
+            resume=CFG.wandb_resume,
+            # Derived from the dataclass, so a new knob reaches wandb automatically. The
+            # extras are facts about this run that aren't knobs.
+            config=wandb_config(
+                CFG,
+                world_size=world_size,
+                device=DEVICE,
+                num_classes=NUM_ELEMENT_CLASSES,
+                seq_vocab_size=VOCAB_SIZE,
+            ),
         )
 
-    for epoch in range(start_epoch, EPOCHS):
+    for epoch in range(start_epoch, CFG.epochs):
         if ddp:
             train_sampler.set_epoch(epoch)
         train_loss, train_acc, train_seq_loss, train_seq_acc = run_epoch(
@@ -713,7 +688,7 @@ def main():
                 f"| val loss {val_loss:.4f} acc {val_acc:.3f} "
                 f"seq_loss {val_seq_loss:.4f} seq_acc {val_seq_acc:.3f}"
             )
-        if USE_WANDB:
+        if WANDB_ON:
             wandb.log(
                 {
                     "epoch": epoch,
@@ -729,7 +704,7 @@ def main():
                 step=_global_step,
             )
 
-    if USE_WANDB:
+    if WANDB_ON:
         wandb.finish()
     if ddp:
         dist.destroy_process_group()

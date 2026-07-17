@@ -26,7 +26,7 @@ def _pts_to_point2d(pts: list) -> list[Point2D]:
 
 
 def _pts_to_xy(pts: list) -> np.ndarray:
-    if not pts:
+    if len(pts) == 0:
         return np.zeros((0, 2), dtype=np.float64)
     return np.array(pts, dtype=np.float64).reshape(-1, 2)
 

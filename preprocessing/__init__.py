@@ -1,4 +1,4 @@
-from .reader import FaroSceneGraphReader
+from .reader_faro import FaroSceneGraphReader
 from .delaunay import get_delaunay_centerlines, HAS_NUMBA
 from .traj import extract_vehicle_chronology, MotionPhase, CrashTrajectorySegment
 from .som import identify_lane_connections
